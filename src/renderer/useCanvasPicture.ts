@@ -1,0 +1,838 @@
+import {useState, useEffect, useRef} from 'react';
+import {Skia, createPicture, matchFont, PaintStyle, TileMode} from '@shopify/react-native-skia';
+import type {SkPicture, SkCanvas, SkFont, SkPaint, SkImage} from '@shopify/react-native-skia';
+import type {CanvasNode, CanvasEdge, TextNode, LinkNode, FileNode, GroupNode, EdgeSide} from '../core';
+import type {EnrichedTextNode} from './extensions/cssclasses';
+import {hasCallouts, parseCallouts, getHeader, getFooter, getLabels, getCenteredCallout} from './extensions/callouts';
+import {getNodeColors, type ColorScheme} from './theme';
+import {parseToSegments, toPlainText} from './markdown';
+import {buildParagraph, getParagraphColours} from './paragraphBuilder';
+import {resolveFileUri} from './utils/resolveFileUri';
+
+// ---------- Fonts (duplicated from individual renderers — shared via Skia's internal cache) ----------
+
+interface FontConfig {
+  fontSize: number;
+  lineHeight: number;
+  fontWeight?: 'bold' | 'normal';
+  fontFamily?: string;
+}
+
+// H4 is used for header/footer/label zones, which are rendered as single-line
+// `canvas.drawText` for now — body text uses `buildParagraph` instead.
+const H4: FontConfig = {fontSize: 13, lineHeight: 18, fontWeight: 'bold'};
+
+const fontCache = new Map<FontConfig, SkFont>();
+function getFont(config: FontConfig): SkFont {
+  let f = fontCache.get(config);
+  if (!f) {
+    const spec: Parameters<typeof matchFont>[0] = {
+      fontFamily: config.fontFamily ?? 'System',
+      fontSize: config.fontSize,
+    };
+    if (config.fontWeight) spec.fontWeight = config.fontWeight;
+    f = matchFont(spec);
+    fontCache.set(config, f);
+  }
+  return f;
+}
+
+// Link/file/label fonts
+let _hostnameFont: SkFont | null = null;
+let _urlFont: SkFont | null = null;
+let _fileNameFont: SkFont | null = null;
+let _fileSubpathFont: SkFont | null = null;
+let _labelFont: SkFont | null = null;
+
+function getHostnameFont(): SkFont {
+  if (!_hostnameFont) _hostnameFont = matchFont({fontFamily: 'System', fontSize: 16, fontWeight: 'bold'});
+  return _hostnameFont;
+}
+function getUrlFont(): SkFont {
+  if (!_urlFont) _urlFont = matchFont({fontFamily: 'System', fontSize: 11});
+  return _urlFont;
+}
+function getFileNameFont(): SkFont {
+  if (!_fileNameFont) _fileNameFont = matchFont({fontFamily: 'System', fontSize: 12, fontWeight: 'bold'});
+  return _fileNameFont;
+}
+function getFileSubpathFont(): SkFont {
+  if (!_fileSubpathFont) _fileSubpathFont = matchFont({fontFamily: 'System', fontSize: 10});
+  return _fileSubpathFont;
+}
+function getEdgeLabelFont(): SkFont {
+  if (!_labelFont) _labelFont = matchFont({fontFamily: 'System', fontSize: 12});
+  return _labelFont;
+}
+
+// ---------- Paint helpers ----------
+
+// Pre-allocated paint pool — reused across all draw calls during recording.
+// Each paint is configured via setColor/setStyle/setStrokeWidth before use.
+const _fillPaint = Skia.Paint();
+const _strokePaint = Skia.Paint();
+_strokePaint.setStyle(PaintStyle.Stroke);
+const _textPaint = Skia.Paint();
+const _gradientPaint = Skia.Paint();
+
+function useFillPaint(color: string): SkPaint {
+  _fillPaint.setColor(Skia.Color(color));
+  _fillPaint.setStyle(PaintStyle.Fill);
+  _fillPaint.setPathEffect(null);
+  _fillPaint.setShader(null);
+  return _fillPaint;
+}
+
+const DEG_TO_RAD = Math.PI / 180;
+
+/** Compute gradient start/end points for a given angle within a rect. Must
+ *  match `SkiaCardRenderer.gradientPoints` exactly so the two paths produce
+ *  identical gradients. */
+function gradientPoints(x: number, y: number, w: number, h: number, deg: number) {
+  const cx = x + w / 2;
+  const cy = y + h / 2;
+  const rad = deg * DEG_TO_RAD;
+  const dx = Math.cos(rad) * w / 2;
+  const dy = Math.sin(rad) * h / 2;
+  return {start: {x: cx - dx, y: cy - dy}, end: {x: cx + dx, y: cy + dy}};
+}
+
+/** Build a fresh paint configured with a linear gradient shader fading from
+ *  `activeColor` to fully-transparent. Used in the Picture path to match the
+ *  live tree's two-pass fill rendering. */
+function useGradientPaint(start: {x: number; y: number}, end: {x: number; y: number}, activeColor: string): SkPaint {
+  const shader = Skia.Shader.MakeLinearGradient(
+    start,
+    end,
+    [Skia.Color(activeColor), Skia.Color('rgba(0,0,0,0)')],
+    null,
+    TileMode.Clamp,
+  );
+  _gradientPaint.setShader(shader);
+  _gradientPaint.setStyle(PaintStyle.Fill);
+  _gradientPaint.setPathEffect(null);
+  return _gradientPaint;
+}
+
+function useStrokePaint(color: string, width: number): SkPaint {
+  _strokePaint.setColor(Skia.Color(color));
+  _strokePaint.setStrokeWidth(width);
+  _strokePaint.setPathEffect(null);
+  return _strokePaint;
+}
+
+function useTextPaint(color: string): SkPaint {
+  _textPaint.setColor(Skia.Color(color));
+  return _textPaint;
+}
+
+// ---------- Edge geometry (duplicated from EdgeRenderer) ----------
+
+const EDGE_PRESET_COLORS: Record<string, string> = {
+  '1': '#EF4444', '2': '#F97316', '3': '#EAB308',
+  '4': '#22C55E', '5': '#3B82F6', '6': '#A855F7',
+};
+const DEFAULT_EDGE_COLOR = '#6B7280';
+
+function resolveEdgeColor(color?: string): string {
+  if (!color) return DEFAULT_EDGE_COLOR;
+  if (color.startsWith('#')) return color;
+  return EDGE_PRESET_COLORS[color] ?? DEFAULT_EDGE_COLOR;
+}
+
+function getConnectionPoint(node: CanvasNode, side?: EdgeSide, ox = 0, oy = 0) {
+  const cx = node.x + node.width / 2 + ox;
+  const cy = node.y + node.height / 2 + oy;
+  switch (side) {
+    case 'top': return {x: cx, y: node.y + oy};
+    case 'bottom': return {x: cx, y: node.y + node.height + oy};
+    case 'left': return {x: node.x + ox, y: cy};
+    case 'right': return {x: node.x + node.width + ox, y: cy};
+    default: return {x: cx, y: cy};
+  }
+}
+
+function computeControlPoints(
+  from: {x: number; y: number},
+  to: {x: number; y: number},
+  fromSide?: EdgeSide,
+  toSide?: EdgeSide,
+) {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  const curvature = Math.min(dist * 0.4, 120);
+  const sideOffset = (side: EdgeSide | undefined, fallbackH: number, fallbackV: number) => {
+    switch (side) {
+      case 'left': return {x: -curvature, y: 0};
+      case 'right': return {x: curvature, y: 0};
+      case 'top': return {x: 0, y: -curvature};
+      case 'bottom': return {x: 0, y: curvature};
+      default: return {x: fallbackH, y: fallbackV};
+    }
+  };
+  const o1 = sideOffset(fromSide, dx * 0.4, dy * 0.4);
+  const o2 = sideOffset(toSide, -dx * 0.4, -dy * 0.4);
+  return {
+    cp1: {x: from.x + o1.x, y: from.y + o1.y},
+    cp2: {x: to.x + o2.x, y: to.y + o2.y},
+  };
+}
+
+function bezierEndAngle(p: {x: number; y: number}, cp: {x: number; y: number}): number {
+  return Math.atan2(p.y - cp.y, p.x - cp.x);
+}
+
+// ---------- Draw functions ----------
+
+const TEXT_PADDING = 12;
+const LABEL_PADDING_X = 8;
+const LABEL_PADDING_Y = 4;
+const GROUP_LABEL_FONT_SIZE = 13;
+const GROUP_LABEL_PX = 10;
+const GROUP_LABEL_PY = 4;
+const IMAGE_RE = /\.(png|jpg|jpeg|gif|svg|webp|bmp|ico)$/i;
+const SVG_RE = /\.svg$/i;
+const RASTER_RE = /\.(png|jpg|jpeg|gif|webp|bmp|ico)$/i;
+
+// ---------- Image cache ----------
+
+// SVGs are excluded from Picture recording — they render live during pinch
+// to preserve vector fidelity at any zoom level.
+type ImageCacheEntry = {type: 'raster'; image: SkImage};
+type ImageCache = Map<string, ImageCacheEntry>;
+
+/** Extract raster image URIs from nodes (group backgrounds + file node images).
+ *  SVGs are excluded — they render live during pinch for vector fidelity. */
+function collectImageUris(allNodes: CanvasNode[], basePath?: string): string[] {
+  const uris: string[] = [];
+  for (const node of allNodes) {
+    if (node.type === 'group' && (node as GroupNode).background) {
+      const bg = (node as GroupNode).background!;
+      if (!SVG_RE.test(bg)) {
+        const uri = resolveFileUri(bg, basePath);
+        if (uri) uris.push(uri);
+      }
+    }
+    if (node.type === 'file') {
+      const file = (node as FileNode).file;
+      if (RASTER_RE.test(file)) {
+        const uri = resolveFileUri(file, basePath);
+        if (uri) uris.push(uri);
+      }
+    }
+  }
+  return [...new Set(uris)];
+}
+
+/** Load raster image URIs into a cache via Skia's imperative Data/Image APIs. */
+async function loadImageCache(uris: string[]): Promise<ImageCache> {
+  const cache: ImageCache = new Map();
+  const promises = uris.map(async (uri) => {
+    try {
+      const data = await Skia.Data.fromURI(uri);
+      if (!data) return;
+      const image = Skia.Image.MakeImageFromEncoded(data);
+      if (image) cache.set(uri, {type: 'raster', image});
+    } catch (err) {
+      console.warn(`[useCanvasPicture] Failed to load image ${uri}:`, err);
+    }
+  });
+  await Promise.all(promises);
+  return cache;
+}
+
+const PARALLELOGRAM_SKEW = 0.2;
+
+// Mirrors `makeSideBorderPath` in SkiaCardRenderer.tsx — see that file for
+// the per-side geometry rationale. The two paths must stay in sync (Picture
+// recording vs live tree).
+function makeSideBorderPath(x: number, y: number, w: number, h: number, r: number, side: 'top' | 'bottom' | 'left' | 'right') {
+  const radius = Math.max(0, Math.min(r, w / 2, h / 2));
+  const right = x + w;
+  const bottom = y + h;
+  const inset = radius * (1 - Math.SQRT1_2);
+  const ix = x + inset;
+  const iy = y + inset;
+  const ixr = right - inset;
+  const iyb = bottom - inset;
+  let d = '';
+  switch (side) {
+    case 'top':
+      d = `M ${ix} ${iy} A ${radius} ${radius} 0 0 1 ${x + radius} ${y} L ${right - radius} ${y} A ${radius} ${radius} 0 0 1 ${ixr} ${iy}`;
+      break;
+    case 'right':
+      d = `M ${ixr} ${iy} A ${radius} ${radius} 0 0 1 ${right} ${y + radius} L ${right} ${bottom - radius} A ${radius} ${radius} 0 0 1 ${ixr} ${iyb}`;
+      break;
+    case 'bottom':
+      d = `M ${ixr} ${iyb} A ${radius} ${radius} 0 0 1 ${right - radius} ${bottom} L ${x + radius} ${bottom} A ${radius} ${radius} 0 0 1 ${ix} ${iyb}`;
+      break;
+    case 'left':
+      d = `M ${ix} ${iyb} A ${radius} ${radius} 0 0 1 ${x} ${bottom - radius} L ${x} ${y + radius} A ${radius} ${radius} 0 0 1 ${ix} ${iy}`;
+      break;
+  }
+  return Skia.Path.MakeFromSVGString(d);
+}
+
+function makeParaPath(x: number, y: number, w: number, h: number, dir: 'left' | 'right') {
+  const skew = w * PARALLELOGRAM_SKEW;
+  const path = Skia.Path.MakeFromSVGString(
+    dir === 'left'
+      ? `M ${x + skew} ${y} L ${x + w} ${y} L ${x + w - skew} ${y + h} L ${x} ${y + h} Z`
+      : `M ${x} ${y} L ${x + w - skew} ${y} L ${x + w} ${y + h} L ${x + skew} ${y + h} Z`
+  );
+  return path;
+}
+
+function drawCard(canvas: SkCanvas, node: CanvasNode, colorScheme: ColorScheme) {
+  const isGroup = node.type === 'group';
+  const colors = getNodeColors(node.color, colorScheme);
+
+  const renderProps = (node as CanvasNode & Partial<EnrichedTextNode>).renderProps;
+  const shape = renderProps?.shape;
+  const isFill = renderProps?.fill;
+  const isTransparent = renderProps?.transparent;
+  const isNocolor = renderProps?.nocolor;
+  const hideBorder = renderProps?.borderStyle === 'none';
+  const borderStyle = renderProps?.borderStyle;
+  const borderSides = renderProps?.borderSides;
+  const isPill = renderProps?.pill;
+  const rotation = renderProps?.rotateCard;
+  const gradientDeg = renderProps?.gradientDeg;
+
+  const fillColor = isTransparent || isNocolor
+    ? 'transparent'
+    : isFill
+      ? colors.active
+      : isGroup
+        ? colors.background
+        : colors.card;
+
+  const borderRadius = isPill
+    ? Math.min(node.width, node.height) / 2
+    : shape === 'rectangle' ? 0 : (isGroup ? 12 : 8);
+  const showFill = !isTransparent && !isNocolor;
+  const hasGradient = gradientDeg != null && showFill;
+  const gradPts = hasGradient
+    ? gradientPoints(node.x, node.y, node.width, node.height, gradientDeg!)
+    : null;
+
+  // Card rotation — must match `SkiaCardRenderer.tsx` and `drawTextNode`
+  // exactly so card outline + body text rotate around the same centre.
+  if (rotation != null) {
+    const cx = node.x + node.width / 2;
+    const cy = node.y + node.height / 2;
+    canvas.save();
+    canvas.rotate(rotation, cx, cy);
+  }
+
+  if (shape === 'circle') {
+    // Fills the full card bounds — true circle when square, stretched ellipse
+    // otherwise. Matches Canvas Candy's CSS-driven origin (`border-radius: 50%`
+    // on a sized box) and the test fixtures' own intent: see the matching
+    // comment + rationale in `SkiaCardRenderer.tsx`. Mirrors that renderer
+    // exactly per the two-paths-in-sync rule.
+    const oval = {x: node.x, y: node.y, width: node.width, height: node.height};
+    if (showFill) canvas.drawOval(oval, useFillPaint(fillColor));
+    if (hasGradient && gradPts) {
+      canvas.drawOval(oval, useGradientPaint(gradPts.start, gradPts.end, colors.active));
+    }
+    if (!hideBorder) {
+      const sp = useStrokePaint(colors.border, 1);
+      if (borderStyle === 'dashed') sp.setPathEffect(Skia.PathEffect.MakeDash([6, 4]));
+      if (borderStyle === 'dotted') sp.setPathEffect(Skia.PathEffect.MakeDash([2, 3]));
+      canvas.drawOval(oval, sp);
+    }
+  } else if (shape === 'parallelogram-left' || shape === 'parallelogram-right') {
+    const dir = shape === 'parallelogram-left' ? 'left' : 'right';
+    const path = makeParaPath(node.x, node.y, node.width, node.height, dir);
+    if (path) {
+      if (showFill) canvas.drawPath(path, useFillPaint(fillColor));
+      if (hasGradient && gradPts) {
+        canvas.drawPath(path, useGradientPaint(gradPts.start, gradPts.end, colors.active));
+      }
+      if (!hideBorder) {
+        const sp = useStrokePaint(colors.border, 1);
+        if (borderStyle === 'dashed') sp.setPathEffect(Skia.PathEffect.MakeDash([6, 4]));
+        if (borderStyle === 'dotted') sp.setPathEffect(Skia.PathEffect.MakeDash([2, 3]));
+        canvas.drawPath(path, sp);
+      }
+    }
+  } else {
+    const rr = {
+      rect: {x: node.x, y: node.y, width: node.width, height: node.height},
+      rx: borderRadius, ry: borderRadius,
+    };
+    if (showFill) canvas.drawRRect(rr, useFillPaint(fillColor));
+    if (hasGradient && gradPts) {
+      canvas.drawRRect(rr, useGradientPaint(gradPts.start, gradPts.end, colors.active));
+    }
+    if (!hideBorder && borderSides && borderSides.length > 0) {
+      // Per-side borders that hug the rounded corners — mirrors
+      // SkiaCardRenderer.tsx exactly per the two-paths-in-sync rule.
+      const sp = useStrokePaint(colors.border, 1);
+      for (const side of borderSides) {
+        const path = makeSideBorderPath(node.x, node.y, node.width, node.height, borderRadius, side);
+        if (path) canvas.drawPath(path, sp);
+      }
+    } else if (!hideBorder) {
+      const sp = useStrokePaint(colors.border, 1);
+      if (isGroup || borderStyle === 'dashed') sp.setPathEffect(Skia.PathEffect.MakeDash([6, 4]));
+      else if (borderStyle === 'dotted') sp.setPathEffect(Skia.PathEffect.MakeDash([2, 3]));
+      canvas.drawRRect(rr, sp);
+      // Double border: inset second stroke
+      if (borderStyle === 'double') {
+        const innerRr = {
+          rect: {x: node.x + 3, y: node.y + 3, width: node.width - 6, height: node.height - 6},
+          rx: Math.max(0, borderRadius - 3), ry: Math.max(0, borderRadius - 3),
+        };
+        canvas.drawRRect(innerRr, useStrokePaint(colors.border, 1));
+      }
+    }
+  }
+
+  if (rotation != null) {
+    canvas.restore();
+  }
+}
+
+function drawGroupBackground(canvas: SkCanvas, node: GroupNode, imageCache: ImageCache, basePath?: string) {
+  if (!node.background) return;
+  const uri = resolveFileUri(node.background, basePath);
+  if (!uri) return;
+  const entry = imageCache.get(uri);
+  if (!entry || entry.type !== 'raster') return;
+
+  const image = entry.image;
+  const imgWidth = image.width();
+  const imgHeight = image.height();
+  const style = node.backgroundStyle ?? 'cover';
+
+  // Clip to rounded rect
+  const rr = {
+    rect: {x: node.x, y: node.y, width: node.width, height: node.height},
+    rx: 12,
+    ry: 12,
+  };
+  canvas.save();
+  canvas.clipRRect(rr, 1 /* ClipOp.Intersect */, true);
+
+  if (style === 'cover') {
+    const scl = Math.max(node.width / imgWidth, node.height / imgHeight);
+    const dw = imgWidth * scl;
+    const dh = imgHeight * scl;
+    const dx = node.x + (node.width - dw) / 2;
+    const dy = node.y + (node.height - dh) / 2;
+    const src = {x: 0, y: 0, width: imgWidth, height: imgHeight};
+    const dst = {x: dx, y: dy, width: dw, height: dh};
+    canvas.drawImageRect(image, src, dst, useFillPaint('#FFFFFF'));
+  } else {
+    // contain
+    const scl = Math.min(node.width / imgWidth, node.height / imgHeight);
+    const dw = imgWidth * scl;
+    const dh = imgHeight * scl;
+    const dx = node.x + (node.width - dw) / 2;
+    const dy = node.y + (node.height - dh) / 2;
+    const src = {x: 0, y: 0, width: imgWidth, height: imgHeight};
+    const dst = {x: dx, y: dy, width: dw, height: dh};
+    canvas.drawImageRect(image, src, dst, useFillPaint('#FFFFFF'));
+  }
+  canvas.restore();
+}
+
+const FILE_IMAGE_MARGIN = 8;
+const FILE_LABEL_SPACE = 28;
+
+function drawFileImage(canvas: SkCanvas, node: FileNode, imageCache: ImageCache, basePath?: string) {
+  if (!RASTER_RE.test(node.file)) return; // SVGs render live for vector fidelity
+  const uri = resolveFileUri(node.file, basePath);
+  if (!uri) return;
+  const entry = imageCache.get(uri);
+  if (!entry) return;
+
+  const x = node.x + FILE_IMAGE_MARGIN;
+  const y = node.y + FILE_IMAGE_MARGIN;
+  const w = Math.max(0, node.width - FILE_IMAGE_MARGIN * 2);
+  const h = Math.max(0, node.height - FILE_IMAGE_MARGIN * 2 - FILE_LABEL_SPACE);
+  if (w === 0 || h === 0) return;
+
+  // Raster images are drawn at source resolution. Zoom fidelity is bounded
+  // by source pixel density — if images pixelate on zoom-in, the source
+  // asset is too small, not the recording path.
+  const image = entry.image;
+  const imgW = image.width();
+  const imgH = image.height();
+  const scl = Math.min(w / imgW, h / imgH);
+  const dw = imgW * scl;
+  const dh = imgH * scl;
+  const dx = x + (w - dw) / 2;
+  const dy = y + (h - dh) / 2;
+  const src = {x: 0, y: 0, width: imgW, height: imgH};
+  const dst = {x: dx, y: dy, width: dw, height: dh};
+
+  canvas.save();
+  canvas.clipRect({x, y, width: w, height: h}, 1 /* ClipOp.Intersect */, true);
+  canvas.drawImageRect(image, src, dst, useFillPaint('#FFFFFF'));
+  canvas.restore();
+}
+
+function drawTextNode(canvas: SkCanvas, node: TextNode, colorScheme: ColorScheme) {
+  const enriched = node as TextNode & Partial<EnrichedTextNode>;
+  const rawContent = enriched.displayText ?? node.text;
+  if (!rawContent) return;
+
+  // Process callouts (same as SkiaTextRenderer)
+  const {bodyText, callouts} = hasCallouts(rawContent)
+    ? parseCallouts(rawContent)
+    : {bodyText: rawContent, callouts: []};
+  const header = getHeader(callouts);
+  const footer = getFooter(callouts);
+  const labels = getLabels(callouts);
+  const centered = getCenteredCallout(callouts);
+  const headerSpace = header ? 28 : 0;
+  const footerSpace = footer ? 28 : 0;
+
+  const isDark = colorScheme === 'dark';
+
+  // Side labels — draw rotated text for label-only nodes
+  if (labels.length > 0 && !bodyText.trim() && !header && !footer) {
+    const label = labels[0];
+    const labelText = toPlainText(label.text);
+    const labelFont = getFont(H4);
+    const labelWidth = labelFont.measureText(labelText).width;
+    const isLeft = label.zone === 'label-left';
+    const lCx = node.x + node.width / 2;
+    const lCy = node.y + node.height / 2;
+    const angle = isLeft ? -90 : 90;
+
+    canvas.save();
+    canvas.rotate(angle, lCx, lCy);
+    canvas.drawText(labelText, lCx - labelWidth / 2, lCy + H4.fontSize / 2,
+      useTextPaint(isDark ? '#E5E7EB' : '#1F2937'), labelFont);
+    canvas.restore();
+    return;
+  }
+  const textColor = isDark ? '#E5E7EB' : '#1F2937';
+  const mutedColor = isDark ? '#9CA3AF' : '#6B7280';
+
+  const maxWidth = Math.max(1, node.width - TEXT_PADDING * 2);
+  const maxHeight = node.height - TEXT_PADDING * 2 - headerSpace - footerSpace;
+  if (maxHeight <= 0) return;
+
+  // Draw header zone
+  if (header) {
+    const hFont = getFont(H4);
+    const hY = node.y + 6 + H4.fontSize;
+    const hText = toPlainText(header.text);
+    if (hText) {
+      const hW = hFont.measureText(hText).width;
+      const hX = node.x + TEXT_PADDING + (maxWidth - hW) / 2;
+      canvas.drawText(hText, hX, hY, useTextPaint(textColor), hFont);
+    }
+    if (!header.noBorder) {
+      canvas.drawLine(node.x + 1, node.y + 28, node.x + node.width - 1, node.y + 28, useStrokePaint(mutedColor, 0.5));
+    }
+  }
+
+  // Draw footer zone
+  if (footer) {
+    const fFont = getFont(H4);
+    const fBaseY = node.y + node.height - footerSpace;
+    const fY = fBaseY + 6 + H4.fontSize;
+    const fText = toPlainText(footer.text);
+    if (fText) {
+      const fW = fFont.measureText(fText).width;
+      const fX = node.x + TEXT_PADDING + (maxWidth - fW) / 2;
+      canvas.drawText(fText, fX, fY, useTextPaint(textColor), fFont);
+    }
+    if (!footer.noBorder) {
+      canvas.drawLine(node.x + 1, fBaseY, node.x + node.width - 1, fBaseY, useStrokePaint(mutedColor, 0.5));
+    }
+  }
+
+  // Body text — render via Skia Paragraph so the picture matches the live
+  // tree (`SkiaTextRenderer`) exactly. Both paths share `buildParagraph`
+  // from `paragraphBuilder.ts`, so HarfBuzz shaping, font fallback, and
+  // line metrics are identical regardless of which path renders.
+  const textContent = centered ? centered.text : bodyText;
+  if (!textContent) return;
+
+  const segments = parseToSegments(textContent);
+  const palette = getParagraphColours(colorScheme);
+  const paragraph = buildParagraph(segments, maxWidth, palette);
+  if (!paragraph) return;
+
+  const shape = enriched.renderProps?.shape;
+  const centerText = enriched.renderProps?.textAlign === 'center'
+    || centered != null
+    || shape === 'circle' || shape === 'parallelogram-left' || shape === 'parallelogram-right';
+
+  const paragraphHeight = paragraph.getHeight();
+  const baseX = node.x + TEXT_PADDING;
+  const bodyYStart = node.y + TEXT_PADDING + headerSpace;
+  const yOffset = centerText && paragraphHeight < maxHeight
+    ? (maxHeight - paragraphHeight) / 2
+    : 0;
+
+  // Text/card rotation
+  const rotateText = enriched.renderProps?.rotateText;
+  const rotateCard = enriched.renderProps?.rotateCard;
+  const rotation = rotateText ?? rotateCard;
+  if (rotation != null) {
+    const cx = node.x + node.width / 2;
+    const cy = node.y + node.height / 2;
+    canvas.save();
+    canvas.rotate(rotation, cx, cy);
+  }
+
+  paragraph.paint(canvas, baseX, bodyYStart + yOffset);
+
+  if (rotation != null) {
+    canvas.restore();
+  }
+}
+
+function drawLinkNode(canvas: SkCanvas, node: LinkNode, colorScheme: ColorScheme) {
+  const isDark = colorScheme === 'dark';
+  const linkColor = isDark ? '#60A5FA' : '#2563EB';
+  const mutedColor = isDark ? '#9CA3AF' : '#6B7280';
+
+  const match = node.url.match(/^https?:\/\/([^/?#]+)/);
+  const hostname = match ? match[1] : node.url;
+
+  const x = node.x + TEXT_PADDING;
+  const urlBarY = node.y + TEXT_PADDING + 11;
+  const hostnameY = node.y + TEXT_PADDING + 40;
+  const urlY = hostnameY + 24;
+
+  canvas.drawText(node.url, x, urlBarY, useTextPaint(mutedColor), getUrlFont());
+  canvas.drawText(hostname, x, hostnameY, useTextPaint(linkColor), getHostnameFont());
+  canvas.drawText(node.url, x, urlY, useTextPaint(mutedColor), getUrlFont());
+}
+
+function drawFileLabel(canvas: SkCanvas, node: FileNode, colorScheme: ColorScheme) {
+  const isDark = colorScheme === 'dark';
+  const textColor = isDark ? '#E5E7EB' : '#1F2937';
+  const mutedColor = isDark ? '#9CA3AF' : '#6B7280';
+  const fileName = node.file.split('/').pop() ?? node.file;
+  const isImage = IMAGE_RE.test(node.file);
+
+  const labelY = isImage
+    ? node.y + node.height - 20
+    : node.y + node.height / 2 + 4;
+  const labelX = node.x + node.width / 2;
+
+  const nameFont = getFileNameFont();
+  const nameWidth = nameFont.measureText(fileName).width;
+  canvas.drawText(fileName, labelX - nameWidth / 2, labelY, useTextPaint(textColor), nameFont);
+
+  if (node.subpath) {
+    const subFont = getFileSubpathFont();
+    const subWidth = subFont.measureText(node.subpath).width;
+    canvas.drawText(node.subpath, labelX - subWidth / 2, labelY + 14, useTextPaint(mutedColor), subFont);
+  }
+}
+
+function drawGroupLabel(canvas: SkCanvas, node: GroupNode, colorScheme: ColorScheme) {
+  if (!node.label) return;
+  const colors = getNodeColors(node.color, colorScheme);
+  const font = matchFont({fontFamily: 'System', fontSize: GROUP_LABEL_FONT_SIZE, fontWeight: 'bold'});
+
+  const textWidth = font.measureText(node.label).width;
+  const pillWidth = textWidth + GROUP_LABEL_PX * 2;
+  const pillHeight = GROUP_LABEL_FONT_SIZE + GROUP_LABEL_PY * 2;
+  const x = node.x;
+  const y = node.y - pillHeight - 8;
+
+  canvas.drawRRect(
+    {rect: {x, y, width: pillWidth, height: pillHeight}, rx: 6, ry: 6},
+    useFillPaint(colors.active),
+  );
+  canvas.drawText(node.label, x + GROUP_LABEL_PX, y + GROUP_LABEL_PY + GROUP_LABEL_FONT_SIZE, useTextPaint(colors.text), font);
+}
+
+function drawEdge(canvas: SkCanvas, edge: CanvasEdge, fromNode: CanvasNode, toNode: CanvasNode) {
+  const from = getConnectionPoint(fromNode, edge.fromSide);
+  const to = getConnectionPoint(toNode, edge.toSide);
+  const color = resolveEdgeColor(edge.color);
+  const {cp1, cp2} = computeControlPoints(from, to, edge.fromSide, edge.toSide);
+
+  // Curve
+  const curvePath = Skia.Path.Make();
+  curvePath.moveTo(from.x, from.y);
+  curvePath.cubicTo(cp1.x, cp1.y, cp2.x, cp2.y, to.x, to.y);
+  canvas.drawPath(curvePath, useStrokePaint(color, 2));
+
+  // Arrows
+  const drawArrow = (x: number, y: number, angle: number) => {
+    const size = 8;
+    const a1 = angle + Math.PI * 0.8;
+    const a2 = angle - Math.PI * 0.8;
+    const path = Skia.Path.Make();
+    path.moveTo(x, y);
+    path.lineTo(x + size * Math.cos(a1), y + size * Math.sin(a1));
+    path.lineTo(x + size * Math.cos(a2), y + size * Math.sin(a2));
+    path.close();
+    canvas.drawPath(path, useFillPaint(color));
+  };
+
+  if (edge.fromEnd === 'arrow') {
+    drawArrow(from.x, from.y, bezierEndAngle(from, cp1));
+  }
+  if (edge.toEnd !== 'none') {
+    drawArrow(to.x, to.y, bezierEndAngle(to, cp2));
+  }
+
+  // Label at bezier midpoint
+  if (edge.label) {
+    const midX = 0.125 * from.x + 0.375 * cp1.x + 0.375 * cp2.x + 0.125 * to.x;
+    const midY = 0.125 * from.y + 0.375 * cp1.y + 0.375 * cp2.y + 0.125 * to.y;
+    const font = getEdgeLabelFont();
+    const labelWidth = font.measureText(edge.label).width + LABEL_PADDING_X * 2;
+    const labelHeight = 12 + LABEL_PADDING_Y * 2;
+
+    canvas.drawRRect(
+      {rect: {x: midX - labelWidth / 2, y: midY - labelHeight / 2, width: labelWidth, height: labelHeight}, rx: 6, ry: 6},
+      useFillPaint(color),
+    );
+    canvas.drawText(edge.label, midX - labelWidth / 2 + LABEL_PADDING_X, midY + 4, useTextPaint('#FFFFFF'), font);
+  }
+}
+
+// ---------- Recording ----------
+
+interface RecordingInputs {
+  allNodes: CanvasNode[];
+  edges: CanvasEdge[];
+  nodeMap: Map<string, CanvasNode>;
+  colorScheme: ColorScheme;
+  /** Directory containing the .canvas file — used to resolve relative `file` paths. */
+  basePath?: string;
+}
+
+function recordCanvasPicture(inputs: RecordingInputs, imageCache: ImageCache): SkPicture {
+  const {allNodes, edges, nodeMap, colorScheme, basePath} = inputs;
+
+  const groupNodes = allNodes.filter((n): n is GroupNode => n.type === 'group');
+  const nonGroupNodes = allNodes.filter(n => n.type !== 'group');
+  const textNodes = allNodes.filter((n): n is TextNode => n.type === 'text');
+  const linkNodes = allNodes.filter((n): n is LinkNode => n.type === 'link');
+  const fileNodes = allNodes.filter((n): n is FileNode => n.type === 'file');
+  const labelledGroups = groupNodes.filter(n => !!n.label);
+
+  const resolvedEdges = edges
+    .map(e => {
+      const f = nodeMap.get(e.fromNode);
+      const t = nodeMap.get(e.toNode);
+      return f && t ? {edge: e, fromNode: f, toNode: t} : null;
+    })
+    .filter(Boolean) as Array<{edge: CanvasEdge; fromNode: CanvasNode; toNode: CanvasNode}>;
+
+  // Tight bounds from actual content — Skia uses this as a culling hint during replay
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const node of allNodes) {
+    minX = Math.min(minX, node.x);
+    minY = Math.min(minY, node.y);
+    maxX = Math.max(maxX, node.x + node.width);
+    maxY = Math.max(maxY, node.y + node.height);
+  }
+  const pad = 100; // headroom for group labels above nodes and edge overshoot
+  const bounds = allNodes.length > 0
+    ? {x: minX - pad, y: minY - pad, width: maxX - minX + pad * 2, height: maxY - minY + pad * 2}
+    : {x: 0, y: 0, width: 1, height: 1};
+
+  return createPicture((canvas: SkCanvas) => {
+    // Layer 1: group cards
+    for (const node of groupNodes) drawCard(canvas, node, colorScheme);
+    // Layer 2: group background images
+    for (const node of groupNodes) drawGroupBackground(canvas, node, imageCache, basePath);
+    // Layer 3: edges
+    for (const {edge, fromNode, toNode} of resolvedEdges) drawEdge(canvas, edge, fromNode, toNode);
+    // Layer 4: non-group cards
+    for (const node of nonGroupNodes) drawCard(canvas, node, colorScheme);
+    // Layer 5: text
+    for (const node of textNodes) drawTextNode(canvas, node, colorScheme);
+    // Layer 5: links
+    for (const node of linkNodes) drawLinkNode(canvas, node, colorScheme);
+    // Layer 5: file labels
+    for (const node of fileNodes) drawFileLabel(canvas, node, colorScheme);
+    // Layer 5: file images
+    for (const node of fileNodes) drawFileImage(canvas, node, imageCache, basePath);
+    // Layer 6: group labels
+    for (const node of labelledGroups) drawGroupLabel(canvas, node, colorScheme);
+  }, bounds);
+}
+
+// ---------- Hook ----------
+
+/**
+ * Records the canvas content as a Skia Picture for replay during pinch-zoom.
+ *
+ * Raster images are loaded imperatively via Skia.Data.fromURI() +
+ * Skia.Image.MakeImageFromEncoded(), then drawn into the Picture alongside
+ * all other non-SVG content (cards, text, edges, labels). SVGs are excluded
+ * from recording and render live for vector fidelity at any zoom level.
+ *
+ * The Picture is recorded lazily after inputs change (double-RAF to avoid
+ * recording during active layout). Returns null if no Picture is available yet.
+ */
+export function useCanvasPicture(inputs: RecordingInputs): SkPicture | null {
+  const [picture, setPicture] = useState<SkPicture | null>(null);
+  const imageCacheRef = useRef<ImageCache>(new Map());
+  const inFlightRef = useRef<Set<string>>(new Set());
+  const [cacheVersion, setCacheVersion] = useState(0);
+
+  // Effect 1 — image loading. Depends only on allNodes (which on mobile is
+  // the culled visible set). Loads are fire-and-forget: results always merge
+  // into the persistent cache regardless of effect cancellation, and bump
+  // cacheVersion to trigger a re-record in Effect 2.
+  useEffect(() => {
+    const uris = collectImageUris(inputs.allNodes, inputs.basePath);
+    const missing = uris.filter(
+      uri => !imageCacheRef.current.has(uri) && !inFlightRef.current.has(uri),
+    );
+    if (missing.length === 0) return;
+
+    missing.forEach(uri => inFlightRef.current.add(uri));
+
+    loadImageCache(missing)
+      .then((newEntries) => {
+        let added = 0;
+        for (const [uri, entry] of newEntries) {
+          imageCacheRef.current.set(uri, entry);
+          added++;
+        }
+        if (added > 0) {
+          setCacheVersion(v => v + 1);
+        }
+      })
+      .finally(() => {
+        missing.forEach(uri => inFlightRef.current.delete(uri));
+      });
+  }, [inputs.allNodes, inputs.basePath]);
+
+  // Keep a ref to the latest inputs so the recording effect can read them
+  // without depending on viewport-volatile array refs (visibleNodes/visibleEdges
+  // change on every viewport update, which would cancel the double-RAF).
+  const inputsRef = useRef(inputs);
+  inputsRef.current = inputs;
+
+  // Effect 2 — Picture recording. Depends on stable content identity
+  // (nodeMap, colorScheme) and cacheVersion, NOT on the culled node/edge
+  // arrays which change every viewport update during gestures.
+  useEffect(() => {
+    let cancelled = false;
+
+    requestAnimationFrame(() => {
+      if (cancelled) return;
+      requestAnimationFrame(() => {
+        if (cancelled) return;
+        setPicture(recordCanvasPicture(inputsRef.current, imageCacheRef.current));
+      });
+    });
+
+    return () => { cancelled = true; };
+  }, [inputs.nodeMap, inputs.colorScheme, cacheVersion]);
+
+  return picture;
+}
