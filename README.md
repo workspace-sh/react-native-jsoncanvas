@@ -53,3 +53,15 @@ The library exposes two layers:
 - **Renderer** — Skia-based React Native components (`CanvasView`, `SkiaCanvasLayer`, node and edge renderers) with built-in pan / pinch / double-tap gestures.
 
 The renderer is consumed through `CanvasView`. The core surface (`parseCanvas`, `createCanvasState`, etc.) is exported alongside if you need to inspect or mutate documents independently.
+
+## Development
+
+```sh
+npm install
+npm test         # jest — runs src/**/__tests__
+npm run typecheck # tsc --noEmit
+npm run lint     # eslint src
+```
+
+Tests use a separate `tsconfig.test.json` so the library's main `tsconfig.json` stays free of `jest` / `node` types.
+
