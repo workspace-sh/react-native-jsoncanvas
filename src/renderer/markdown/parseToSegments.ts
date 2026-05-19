@@ -15,7 +15,6 @@ import unified from 'unified';
 import remarkParse from 'remark-parse';
 import remarkGfm from 'remark-gfm';
 import remarkFrontmatter from 'remark-frontmatter';
-import mdastToString from 'mdast-util-to-string';
 import {fromHtml} from 'hast-util-from-html';
 import type {Root, Content, PhrasingContent} from 'mdast';
 import type {TextSegment, SegmentStyle} from './types';
