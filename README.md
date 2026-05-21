@@ -58,10 +58,34 @@ The renderer is consumed through `CanvasView`. The core surface (`parseCanvas`, 
 
 ```sh
 npm install
-npm test         # jest — runs src/**/__tests__
+npm test          # jest — runs src/**/__tests__
 npm run typecheck # tsc --noEmit
-npm run lint     # eslint src
+npm run lint      # eslint src
 ```
 
 Tests use a separate `tsconfig.test.json` so the library's main `tsconfig.json` stays free of `jest` / `node` types.
+
+### Playground app
+
+A minimal Expo CNG harness lives at `examples/playground/`. Imports the
+library via a workspace symlink, renders a sample fixture inside a
+`CanvasView`, and exposes Fit / Recenter buttons that drive the `onReady`
+controls. Edits to `src/` are picked up automatically by Metro's watcher.
+
+```sh
+npm run example                            # starts the Metro bundler (--dev-client)
+npm start --workspace=examples/playground  # equivalent
+```
+
+To actually run it on a simulator:
+
+```sh
+cd examples/playground
+npx expo run:ios       # iOS simulator (first time builds a dev client)
+npx expo run:android   # Android emulator
+npx expo start --web   # browser (requires CanvasKit WASM — see #17)
+```
+
+macOS smoke-testing needs a separate `examples/desktop/` harness using
+`react-native-macos` (Expo doesn't target macOS). Tracked in #21.
 

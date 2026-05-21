@@ -10,10 +10,14 @@
     "README.md",
     "LICENSE"
   ],
+  "workspaces": [
+    "examples/*"
+  ],
   "scripts": {
     "test": "jest",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src"
+    "lint": "eslint src",
+    "example": "npm start --workspace=examples/playground"
   },
   "engines": {
     "node": ">=20"

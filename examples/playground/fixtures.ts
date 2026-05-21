@@ -1,0 +1,62 @@
+// Inline JSON Canvas fixtures for the playground. Keeping these as TS string
+// constants avoids needing a Metro transformer for .canvas files.
+export const SAMPLE_CANVAS = JSON.stringify(
+{
+  "nodes": [
+    {
+      "id": "node-1",
+      "type": "text",
+      "x": 100,
+      "y": 100,
+      "width": 300,
+      "height": 200,
+      "text": "# Hello World\n\nThis is a **markdown** text node."
+    },
+    {
+      "id": "node-2",
+      "type": "text",
+      "x": 500,
+      "y": 100,
+      "width": 300,
+      "height": 200,
+      "text": "## Second Node\n\n- Item one\n- Item two\n- Item three"
+    },
+    {
+      "id": "node-3",
+      "type": "link",
+      "x": 100,
+      "y": 400,
+      "width": 300,
+      "height": 150,
+      "url": "https://jsoncanvas.org"
+    },
+    {
+      "id": "node-4",
+      "type": "group",
+      "x": 50,
+      "y": 50,
+      "width": 800,
+      "height": 550,
+      "label": "My Canvas Group",
+      "color": "5"
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-1",
+      "fromNode": "node-1",
+      "fromSide": "right",
+      "toNode": "node-2",
+      "toSide": "left",
+      "label": "connects to"
+    },
+    {
+      "id": "edge-2",
+      "fromNode": "node-1",
+      "fromSide": "bottom",
+      "toNode": "node-3",
+      "toSide": "top",
+      "toEnd": "arrow"
+    }
+  ]
+});
