@@ -131,11 +131,18 @@ function EdgeRendererMemoized({edge, fromNode, toNode, offsetX = 0, offsetY = 0}
   const showFromArrow = edge.fromEnd === 'arrow';
   const showToArrow = edge.toEnd !== 'none';
 
+  // Fine-grained deps on fromNode/toNode geometry fields (rather than the
+  // whole node objects). Intentional — re-memoise only when geometry
+  // actually changes, not on every object-identity churn. The exhaustive-deps
+  // rule can't statically prove this is complete because the closure also
+  // passes the whole node into getConnectionPoint, so suppress it on the
+  // deps array below.
   const geometry = useMemo(() => {
     const from = getConnectionPoint(fromNode, edge.fromSide, offsetX, offsetY);
     const to = getConnectionPoint(toNode, edge.toSide, offsetX, offsetY);
     const {cp1, cp2} = computeControlPoints(from, to, edge.fromSide, edge.toSide);
     return {from, to, cp1, cp2};
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     fromNode.x, fromNode.y, fromNode.width, fromNode.height,
     toNode.x, toNode.y, toNode.width, toNode.height,
@@ -149,12 +156,10 @@ function EdgeRendererMemoized({edge, fromNode, toNode, offsetX = 0, offsetY = 0}
     return p;
   }, [geometry]);
 
-  const {fromArrowPath, toArrowPath, fromAngle, toAngle} = useMemo(() => {
+  const {fromArrowPath, toArrowPath} = useMemo(() => {
     const fAngle = bezierEndAngle(geometry.from, geometry.cp1);
     const tAngle = bezierEndAngle(geometry.to, geometry.cp2);
     return {
-      fromAngle: fAngle,
-      toAngle: tAngle,
       fromArrowPath: showFromArrow ? makeArrowPath(geometry.from.x, geometry.from.y, fAngle, 8) : null,
       toArrowPath: showToArrow ? makeArrowPath(geometry.to.x, geometry.to.y, tAngle, 8) : null,
     };
