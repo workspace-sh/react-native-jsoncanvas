@@ -17,7 +17,13 @@
     "test": "jest",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
-    "example": "npm start --workspace=examples/playground"
+    "playground:start": "cd examples/playground && npx expo start --dev-client --port 8082",
+    "playground:clear": "cd examples/playground && watchman watch-del-all && npx expo start --clear --port 8082",
+    "playground:ios": "cd examples/playground && npx expo run:ios --port 8082",
+    "playground:ios:device": "cd examples/playground && npx expo run:ios --device --port 8082",
+    "playground:android": "cd examples/playground && npx expo run:android --port 8082",
+    "playground:android:device": "cd examples/playground && npx expo run:android --device --port 8082",
+    "playground:web": "cd examples/playground && npx expo start --web --port 8082"
   },
   "engines": {
     "node": ">=20"

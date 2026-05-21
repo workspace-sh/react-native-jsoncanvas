@@ -72,20 +72,22 @@ library via a workspace symlink, renders a sample fixture inside a
 `CanvasView`, and exposes Fit / Recenter buttons that drive the `onReady`
 controls. Edits to `src/` are picked up automatically by Metro's watcher.
 
-```sh
-npm run example                            # starts the Metro bundler (--dev-client)
-npm start --workspace=examples/playground  # equivalent
-```
-
-To actually run it on a simulator:
+All commands run from the repo root:
 
 ```sh
-cd examples/playground
-npx expo run:ios       # iOS simulator (first time builds a dev client)
-npx expo run:android   # Android emulator
-npx expo start --web   # browser (requires CanvasKit WASM — see #17)
+npm run playground:ios            # First-run iOS: builds dev client + runs in sim
+npm run playground:android        # First-run Android: builds dev client + runs in emulator
+npm run playground:start          # Metro bundler only (dev client already installed)
+npm run playground:clear          # Reset watchman + Metro cache, then start
+npm run playground:web            # Browser (CanvasKit WASM — see #17)
+npm run playground:ios:device     # Tethered iOS device
+npm run playground:android:device # Tethered Android device
 ```
+
+Port `8082` matches Workspace's `mobile:*` scripts, leaving `8081` free for
+the bare-RN macOS harness in #21.
 
 macOS smoke-testing needs a separate `examples/desktop/` harness using
-`react-native-macos` (Expo doesn't target macOS). Tracked in #21.
+`react-native-macos` (Expo doesn't target macOS). Tracked in #21 — when it
+lands, its scripts will be `desktop:*` at the same level.
 
