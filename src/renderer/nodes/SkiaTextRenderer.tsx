@@ -1,6 +1,6 @@
 import React, {useMemo} from 'react';
 import {
-  Group, Line, vec, matchFont, Text,
+  Group, Line, vec, matchFont, Text, rect,
   Paragraph as SkiaParagraph,
 } from '@shopify/react-native-skia';
 import type {TextNode} from '../../core';
@@ -223,12 +223,14 @@ export function SkiaTextRenderer({node, colorScheme, offsetX, offsetY}: Props) {
     }
 
     return (
-      <Group transform={[
-        {translateX: labelCx}, {translateY: labelCy},
-        {rotate: labelRotation * DEG_TO_RAD},
-        {translateX: -labelCx}, {translateY: -labelCy},
-      ]}>
-        {labelElements}
+      <Group clip={rect(node.x + offsetX, node.y + offsetY, node.width, node.height)}>
+        <Group transform={[
+          {translateX: labelCx}, {translateY: labelCy},
+          {rotate: labelRotation * DEG_TO_RAD},
+          {translateX: -labelCx}, {translateY: -labelCy},
+        ]}>
+          {labelElements}
+        </Group>
       </Group>
     );
   }
@@ -300,5 +302,15 @@ export function SkiaTextRenderer({node, colorScheme, offsetX, offsetY}: Props) {
     );
   }
 
-  return content;
+  // Clip the rendered text to the card's world bounds — long body content
+  // would otherwise bleed past the card edge into adjacent nodes (#167).
+  // Top-level-return placement is load-bearing: <Group clip> inside an
+  // element array (the parent's children list) is a no-op per #96. The clip
+  // is in world coords so it survives the rotation Group above it. Intra-
+  // card scroll is tracked separately at #168.
+  return (
+    <Group clip={rect(node.x + offsetX, node.y + offsetY, node.width, node.height)}>
+      {content}
+    </Group>
+  );
 }

@@ -406,16 +406,25 @@ export function CanvasView({content, basePath, renderMarkdown, initialViewState,
   // Zoom to fit a single node in the viewport with a small screen-space
   // padding. Soft-capped at NODE_FIT_SOFT_MAX_SCALE so tiny stencils don't
   // overshoot to MAX_SCALE.
-  const zoomToNode = useCallback((node: CanvasNode) => {
+  //
+  // `leftInset` mirrors `fitToViewport`: on macOS the desktop sidebar overlays
+  // the canvas, so centring the node against the full viewport leaves it
+  // under the sidebar. Caller (handleDoubleTap) reads the live sidebar width
+  // from `leftInsetSV` and passes it here per call. Kept as a parameter, not
+  // a closure dep, to preserve callback identity — see the matching
+  // discussion above `fitToViewport`.
+  const zoomToNode = useCallback((node: CanvasNode, leftInset: number = 0) => {
     const sw = viewportWidth;
     const sh = viewportHeight;
-    const fitW = Math.max(1, sw - NODE_FIT_PADDING * 2);
+    const visibleW = Math.max(1, sw - leftInset);
+    const centreX = leftInset + visibleW / 2;
+    const fitW = Math.max(1, visibleW - NODE_FIT_PADDING * 2);
     const fitH = Math.max(1, sh - NODE_FIT_PADDING * 2);
     const s = Math.max(
       MIN_SCALE,
       Math.min(NODE_FIT_SOFT_MAX_SCALE, Math.min(fitW / node.width, fitH / node.height)),
     );
-    const tx = sw / 2 - (node.x + node.width / 2) * s;
+    const tx = centreX - (node.x + node.width / 2) * s;
     const ty = sh / 2 - (node.y + node.height / 2) * s;
     animateCamera(tx, ty, s);
   }, [viewportWidth, viewportHeight, animateCamera]);
@@ -436,8 +445,14 @@ export function CanvasView({content, basePath, renderMarkdown, initialViewState,
       ? hits.reduce((a, b) => (a.width * a.height < b.width * b.height ? a : b))
       : null;
 
+    // Read the live sidebar width once per tap so both the zoom-in and the
+    // toggle-back-to-fit branches centre against the visible pane (#165).
+    // `leftInsetSV` is a stable SharedValue ref — adding it to deps doesn't
+    // recompose this callback.
+    const inset = leftInsetSV?.value ?? 0;
+
     if (!hit || lastZoomedNodeId.current === hit.id) {
-      fitToViewport();
+      fitToViewport(inset);
       lastZoomedNodeId.current = null;
       // Double-tap is a manual / focal interaction — sidebar toggle should
       // leave the camera alone afterwards. fitToViewport set lastAction to
@@ -446,10 +461,10 @@ export function CanvasView({content, basePath, renderMarkdown, initialViewState,
       return;
     }
 
-    zoomToNode(hit);
+    zoomToNode(hit, inset);
     lastZoomedNodeId.current = hit.id;
     lastActionRef.current = 'manual';
-  }, [canvasState, fitToViewport, zoomToNode, isPinching]);
+  }, [canvasState, fitToViewport, zoomToNode, isPinching, leftInsetSV]);
 
   // Recenter content at current zoom level, against the visible canvas pane.
   // See `fitToViewport` for the leftInset rationale.
