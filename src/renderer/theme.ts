@@ -7,6 +7,12 @@ interface NodeColors {
   border: string;
   background: string;
   active: string;
+  /** Same hue as `active` at alpha 0. Used as the fade-to stop for
+   *  `cc-card-gradient-Ndeg` so the midpoint of the gradient stays inside
+   *  the active colour's family — `[active, 'transparent']` interpolates
+   *  through grey/black in straight RGBA space and reads as muddy on a
+   *  light canvas background. See #163. */
+  activeTransparent: string;
   text: string;
 }
 
@@ -84,6 +90,7 @@ export function getNodeColors(color: string | undefined, scheme: ColorScheme): N
       border: hasColor ? hsla(h, s, Math.min(l, 65), 0.75) : '#505058',
       background: hasColor ? hsla(h, s, l, 0.15) : 'transparent',
       active: hsl(h, s, l),
+      activeTransparent: hsla(h, s, l, 0),
       text: '#E5E7EB',
     };
   }
@@ -93,6 +100,7 @@ export function getNodeColors(color: string | undefined, scheme: ColorScheme): N
     border: hasColor ? hsla(h, s, l, 0.55) : '#C8C8CC',
     background: hasColor ? hsla(h, s, l, 0.08) : 'transparent',
     active: hsl(h, s, l),
+    activeTransparent: hsla(h, s, l, 0),
     text: '#1F2937',
   };
 }

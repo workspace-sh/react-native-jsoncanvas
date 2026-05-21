@@ -185,7 +185,7 @@ export function SkiaCardRenderer({node, colorScheme}: Props) {
           <Oval rect={ovalRect} color={fillColor} opacity={fillOpacity} />
           {hasGradient && gradPts && (
             <Oval rect={ovalRect} opacity={fillOpacity}>
-              <LinearGradient start={gradPts.start} end={gradPts.end} colors={[colors.active, 'transparent']} />
+              <LinearGradient start={gradPts.start} end={gradPts.end} colors={[colors.active, colors.activeTransparent]} />
             </Oval>
           )}
         </>
@@ -195,7 +195,7 @@ export function SkiaCardRenderer({node, colorScheme}: Props) {
           <Path path={paraPath} color={fillColor} opacity={fillOpacity} />
           {hasGradient && gradPts && (
             <Path path={paraPath} opacity={fillOpacity}>
-              <LinearGradient start={gradPts.start} end={gradPts.end} colors={[colors.active, 'transparent']} />
+              <LinearGradient start={gradPts.start} end={gradPts.end} colors={[colors.active, colors.activeTransparent]} />
             </Path>
           )}
         </>
@@ -213,7 +213,7 @@ export function SkiaCardRenderer({node, colorScheme}: Props) {
               x={node.x} y={node.y} width={node.width} height={node.height}
               r={borderRadius} opacity={fillOpacity}
             >
-              <LinearGradient start={gradPts.start} end={gradPts.end} colors={[colors.active, 'transparent']} />
+              <LinearGradient start={gradPts.start} end={gradPts.end} colors={[colors.active, colors.activeTransparent]} />
             </RoundedRect>
           )}
         </>

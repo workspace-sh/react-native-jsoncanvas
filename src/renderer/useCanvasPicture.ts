@@ -98,13 +98,16 @@ function gradientPoints(x: number, y: number, w: number, h: number, deg: number)
 }
 
 /** Build a fresh paint configured with a linear gradient shader fading from
- *  `activeColor` to fully-transparent. Used in the Picture path to match the
- *  live tree's two-pass fill rendering. */
-function useGradientPaint(start: {x: number; y: number}, end: {x: number; y: number}, activeColor: string): SkPaint {
+ *  `activeColor` to `fadeColor`. Used in the Picture path to match the live
+ *  tree's two-pass fill rendering. The caller passes `colors.activeTransparent`
+ *  (same hue at alpha 0) as `fadeColor` so the midpoint interpolation stays
+ *  inside the active colour's family — fading to a literal transparent black
+ *  reads as muddy/brown on a light canvas background. See #163. */
+function useGradientPaint(start: {x: number; y: number}, end: {x: number; y: number}, activeColor: string, fadeColor: string): SkPaint {
   const shader = Skia.Shader.MakeLinearGradient(
     start,
     end,
-    [Skia.Color(activeColor), Skia.Color('rgba(0,0,0,0)')],
+    [Skia.Color(activeColor), Skia.Color(fadeColor)],
     null,
     TileMode.Clamp,
   );
@@ -335,7 +338,7 @@ function drawCard(canvas: SkCanvas, node: CanvasNode, colorScheme: ColorScheme) 
     const oval = {x: node.x, y: node.y, width: node.width, height: node.height};
     if (showFill) canvas.drawOval(oval, useFillPaint(fillColor));
     if (hasGradient && gradPts) {
-      canvas.drawOval(oval, useGradientPaint(gradPts.start, gradPts.end, colors.active));
+      canvas.drawOval(oval, useGradientPaint(gradPts.start, gradPts.end, colors.active, colors.activeTransparent));
     }
     if (!hideBorder) {
       const sp = useStrokePaint(colors.border, 1);
@@ -349,7 +352,7 @@ function drawCard(canvas: SkCanvas, node: CanvasNode, colorScheme: ColorScheme) 
     if (path) {
       if (showFill) canvas.drawPath(path, useFillPaint(fillColor));
       if (hasGradient && gradPts) {
-        canvas.drawPath(path, useGradientPaint(gradPts.start, gradPts.end, colors.active));
+        canvas.drawPath(path, useGradientPaint(gradPts.start, gradPts.end, colors.active, colors.activeTransparent));
       }
       if (!hideBorder) {
         const sp = useStrokePaint(colors.border, 1);
@@ -365,7 +368,7 @@ function drawCard(canvas: SkCanvas, node: CanvasNode, colorScheme: ColorScheme) 
     };
     if (showFill) canvas.drawRRect(rr, useFillPaint(fillColor));
     if (hasGradient && gradPts) {
-      canvas.drawRRect(rr, useGradientPaint(gradPts.start, gradPts.end, colors.active));
+      canvas.drawRRect(rr, useGradientPaint(gradPts.start, gradPts.end, colors.active, colors.activeTransparent));
     }
     if (!hideBorder && borderSides && borderSides.length > 0) {
       // Per-side borders that hug the rounded corners — mirrors
@@ -494,6 +497,18 @@ function drawTextNode(canvas: SkCanvas, node: TextNode, colorScheme: ColorScheme
 
   const isDark = colorScheme === 'dark';
 
+  // Clip the text-node output to its world bounds — mirrors the
+  // `<Group clip>` wrapper at the bottom of `SkiaTextRenderer` so the Picture
+  // overlay produces the same clipped result during pinch (#167). Every
+  // return path below MUST be preceded by `canvas.restore()` to keep the
+  // save stack balanced.
+  canvas.save();
+  canvas.clipRect(
+    {x: node.x, y: node.y, width: node.width, height: node.height},
+    1 /* ClipOp.Intersect */,
+    true,
+  );
+
   // Side labels — draw rotated text for label-only nodes
   if (labels.length > 0 && !bodyText.trim() && !header && !footer) {
     const label = labels[0];
@@ -510,6 +525,7 @@ function drawTextNode(canvas: SkCanvas, node: TextNode, colorScheme: ColorScheme
     canvas.drawText(labelText, lCx - labelWidth / 2, lCy + H4.fontSize / 2,
       useTextPaint(isDark ? '#E5E7EB' : '#1F2937'), labelFont);
     canvas.restore();
+    canvas.restore();
     return;
   }
   const textColor = isDark ? '#E5E7EB' : '#1F2937';
@@ -517,7 +533,10 @@ function drawTextNode(canvas: SkCanvas, node: TextNode, colorScheme: ColorScheme
 
   const maxWidth = Math.max(1, node.width - TEXT_PADDING * 2);
   const maxHeight = node.height - TEXT_PADDING * 2 - headerSpace - footerSpace;
-  if (maxHeight <= 0) return;
+  if (maxHeight <= 0) {
+    canvas.restore();
+    return;
+  }
 
   // Draw header zone
   if (header) {
@@ -555,12 +574,18 @@ function drawTextNode(canvas: SkCanvas, node: TextNode, colorScheme: ColorScheme
   // from `paragraphBuilder.ts`, so HarfBuzz shaping, font fallback, and
   // line metrics are identical regardless of which path renders.
   const textContent = centered ? centered.text : bodyText;
-  if (!textContent) return;
+  if (!textContent) {
+    canvas.restore();
+    return;
+  }
 
   const segments = parseToSegments(textContent);
   const palette = getParagraphColours(colorScheme);
   const paragraph = buildParagraph(segments, maxWidth, palette);
-  if (!paragraph) return;
+  if (!paragraph) {
+    canvas.restore();
+    return;
+  }
 
   const shape = enriched.renderProps?.shape;
   const centerText = enriched.renderProps?.textAlign === 'center'
@@ -590,6 +615,8 @@ function drawTextNode(canvas: SkCanvas, node: TextNode, colorScheme: ColorScheme
   if (rotation != null) {
     canvas.restore();
   }
+
+  canvas.restore(); // matches the save() + clipRect() at function top (#167)
 }
 
 function drawLinkNode(canvas: SkCanvas, node: LinkNode, colorScheme: ColorScheme) {
