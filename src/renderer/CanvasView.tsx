@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
-import {View, Text, Platform, StyleSheet, useColorScheme, useWindowDimensions, type LayoutChangeEvent} from 'react-native';
+import {View, Text, Platform, useColorScheme, useWindowDimensions, type LayoutChangeEvent} from 'react-native';
 import {GestureDetector, Gesture} from 'react-native-gesture-handler';
 import {useSharedValue, withDecay, cancelAnimation, type SharedValue} from 'react-native-reanimated';
 import {scheduleOnRN} from 'react-native-worklets';

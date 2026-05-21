@@ -11,7 +11,6 @@ import {parseToSegments, toPlainText} from '../markdown';
 import {buildParagraph, getParagraphColours} from '../paragraphBuilder';
 
 const DEG_TO_RAD = Math.PI / 180;
-const PARALLELOGRAM_SKEW = 0.2;
 const ZONE_HEIGHT = 28;
 const ZONE_PADDING = 6;
 

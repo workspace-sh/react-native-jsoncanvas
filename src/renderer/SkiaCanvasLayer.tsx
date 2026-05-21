@@ -15,6 +15,10 @@ import type {ColorScheme} from './theme';
 import {useCanvasPicture} from './useCanvasPicture';
 import {devFlags} from './devFlags';
 
+// Module-level: matches any file ending in `.svg` (case-insensitive). Stable
+// across renders, so it doesn't need to be in any useMemo dep array.
+const SVG_RE = /\.svg$/i;
+
 interface CameraValues {
   translateX: SharedValue<number>;
   translateY: SharedValue<number>;
@@ -122,7 +126,6 @@ export function SkiaCanvasLayer({
 
   // Split file nodes: rasters go in the live tree below the Picture,
   // SVGs render above the Picture for vector fidelity at any zoom.
-  const SVG_RE = /\.svg$/i;
   const svgFileNodes = useMemo(
     () => fileNodes.filter(n => SVG_RE.test(n.file)),
     [fileNodes],
