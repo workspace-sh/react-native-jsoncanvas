@@ -65,29 +65,37 @@ npm run lint      # eslint src
 
 Tests use a separate `tsconfig.test.json` so the library's main `tsconfig.json` stays free of `jest` / `node` types.
 
-### Playground app
+### Example apps
 
-A minimal Expo CNG harness lives at `examples/playground/`. Imports the
-library via a workspace symlink, renders a sample fixture inside a
-`CanvasView`, and exposes Fit / Recenter buttons that drive the `onReady`
-controls. Edits to `src/` are picked up automatically by Metro's watcher.
+Example harnesses live under `example/` and follow the org's standard layout
+(mirrors `react-native-source-editor/example/*`):
+
+- **`example/expo-app/`** — Expo SDK 55 host serving iOS + Android. Uses Expo
+  CNG, owned by `expo prebuild` — never run `pod install` (iOS) or hand-edit
+  `android/` here manually.
+- **`example/macos-app/`** — `react-native-macos` 0.81 host. Tracked in #21.
+
+Each example imports the library through Metro's `extraNodeModules` mapping
+back to repo root. Edits to `src/` hot-reload via Metro's watcher.
 
 All commands run from the repo root:
 
 ```sh
-npm run playground:ios            # First-run iOS: builds dev client + runs in sim
-npm run playground:android        # First-run Android: builds dev client + runs in emulator
-npm run playground:start          # Metro bundler only (dev client already installed)
-npm run playground:clear          # Reset watchman + Metro cache, then start
-npm run playground:web            # Browser (CanvasKit WASM — see #17)
-npm run playground:ios:device     # Tethered iOS device
-npm run playground:android:device # Tethered Android device
+# iOS
+npm run ios:run              # First run: full Xcode build + sim launch
+npm run ios:start            # Metro only (build already exists)
+npm run ios:clear            # watchman watch-del-all + reset Metro cache
+npm run ios:dev              # concurrently: clear + run
+npm run ios:run:device       # tethered iOS device
+npm run ios:prebuild         # regenerate ios/ from app.json (CNG)
+npm run ios:clean            # delete ios/ — pair with :prebuild
+
+# Android (same surface)
+npm run android:run
+npm run android:start
+npm run android:dev
+# … etc.
 ```
 
-Port `8082` matches Workspace's `mobile:*` scripts, leaving `8081` free for
-the bare-RN macOS harness in #21.
-
-macOS smoke-testing needs a separate `examples/desktop/` harness using
-`react-native-macos` (Expo doesn't target macOS). Tracked in #21 — when it
-lands, its scripts will be `desktop:*` at the same level.
+(macOS scripts arrive with #21.)
 

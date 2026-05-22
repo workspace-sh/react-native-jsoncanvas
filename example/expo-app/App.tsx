@@ -11,39 +11,36 @@ type Controls = {
   getLastAction: () => 'fit' | 'recenter' | 'manual';
 };
 
-const FIXTURES = {
-  sample: SAMPLE_CANVAS,
-} as const;
-type FixtureKey = keyof typeof FIXTURES;
-
 export default function App() {
   const controlsRef = useRef<Controls | null>(null);
-  const [fixture, setFixture] = useState<FixtureKey>('sample');
   const [lastAction, setLastAction] = useState<string>('—');
-
-  const fit = () => {
-    controlsRef.current?.fitToViewport();
-    setLastAction(controlsRef.current?.getLastAction() ?? '—');
-  };
-  const recenter = () => {
-    controlsRef.current?.recenter();
-    setLastAction(controlsRef.current?.getLastAction() ?? '—');
-  };
 
   return (
     <GestureHandlerRootView style={styles.root}>
       <CanvasView
-        content={FIXTURES[fixture]}
+        content={SAMPLE_CANVAS}
         onReady={c => {
           controlsRef.current = c;
         }}
       />
       <View style={styles.controls} pointerEvents="box-none">
-        <Pressable style={styles.button} onPress={fit}>
-          <Text style={styles.buttonText}>Fit</Text>
-        </Pressable>
-        <Pressable style={styles.button} onPress={recenter}>
+        <Pressable
+          style={({pressed}) => [styles.button, pressed && styles.pressed]}
+          onPress={() => {
+            controlsRef.current?.recenter();
+            setLastAction(controlsRef.current?.getLastAction() ?? '—');
+          }}
+        >
           <Text style={styles.buttonText}>Recenter</Text>
+        </Pressable>
+        <Pressable
+          style={({pressed}) => [styles.button, pressed && styles.pressed]}
+          onPress={() => {
+            controlsRef.current?.fitToViewport();
+            setLastAction(controlsRef.current?.getLastAction() ?? '—');
+          }}
+        >
+          <Text style={styles.buttonText}>Fit</Text>
         </Pressable>
         <View style={styles.status}>
           <Text style={styles.statusText}>last: {lastAction}</Text>
@@ -72,6 +69,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   buttonText: {color: '#fff', fontWeight: '600'},
+  pressed: {opacity: 0.7},
   status: {
     backgroundColor: 'rgba(0,0,0,0.6)',
     paddingVertical: 6,

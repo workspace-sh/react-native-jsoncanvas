@@ -1,33 +1,55 @@
-// Metro config for the playground example.
-//
-// The library lives one level up (../..) and is symlinked into our
-// node_modules via the `file:../..` dep. Metro needs to:
-//   1. Watch the library's src/ for changes (so edits hot-reload)
-//   2. Resolve modules from both local and root node_modules (hoisting)
-//   3. Avoid loading two copies of react / react-native (which crashes)
-//
-// Pattern mirrors apps/mobile/metro.config.js in the Workspace monorepo.
+// Metro config for the Expo CNG example. Pattern mirrors
+// react-native-source-editor/example/expo-app/metro.config.js — the proven
+// shape for an Expo app consuming a sibling library via `file:../..`.
 
-const path = require('path');
 const {getDefaultConfig} = require('expo/metro-config');
+const path = require('path');
 
 const projectRoot = __dirname;
-const libRoot = path.resolve(projectRoot, '../..');
+const moduleRoot = path.resolve(projectRoot, '../..');
 
 const config = getDefaultConfig(projectRoot);
 
-// Watch the library so edits in src/ trigger reloads
-config.watchFolders = [libRoot];
+// iOS + Android only here. Web smoke-testing is tracked in #17 — Skia for
+// web pulls in CanvasKit WASM with its own bundling caveats, kept off the
+// happy path until that issue lands.
+config.resolver.platforms = ['ios', 'android', 'native'];
 
-// Resolve from both local and root node_modules (root is where npm hoists shared deps)
-config.resolver.nodeModulesPaths = [
-  path.resolve(projectRoot, 'node_modules'),
-  path.resolve(libRoot, 'node_modules'),
+// Block the library's own copies of react / react-native so Metro can't
+// load two react roots (one from us, one from the library) and crash.
+//
+// Important: the regex MUST be anchored at a path boundary, otherwise
+// `node_modules/react` also matches `node_modules/react-is`,
+// `node_modules/react-dom`, `node_modules/react-native-anything`, etc. —
+// every sibling that happens to start with "react". That breaks transitive
+// resolution (hoist-non-react-statics → react-is) and surfaces as confusing
+// "unable to resolve react-is" Metro errors.
+//
+// Trailing `/` guarantees we only match the actual react/ and react-native/
+// package directories, not name-prefixed siblings.
+function escapeRegExp(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+const reactPath = escapeRegExp(path.resolve(moduleRoot, 'node_modules', 'react'));
+const rnPath = escapeRegExp(path.resolve(moduleRoot, 'node_modules', 'react-native'));
+config.resolver.blockList = [
+  ...Array.from(config.resolver.blockList ?? []),
+  new RegExp(reactPath + '/'),
+  new RegExp(rnPath + '/'),
 ];
 
-// Force a single copy of react / react-native — block any nested copies the
-// library might pull in from its own node_modules during dev. (Library
-// declares them as peerDeps so this shouldn't happen, but defence-in-depth.)
-config.resolver.disableHierarchicalLookup = false;
+// Resolve from both local and module root node_modules
+config.resolver.nodeModulesPaths = [
+  path.resolve(projectRoot, 'node_modules'),
+  path.resolve(moduleRoot, 'node_modules'),
+];
+
+// Explicit override — bypass any symlink resolution quirks
+config.resolver.extraNodeModules = {
+  '@workspace.sh/react-native-jsoncanvas': moduleRoot,
+};
+
+// Watch the library so src/ edits hot-reload
+config.watchFolders = [moduleRoot];
 
 module.exports = config;
