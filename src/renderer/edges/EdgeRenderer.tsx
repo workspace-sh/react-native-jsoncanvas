@@ -70,15 +70,15 @@ function makeArrowPath(
   y: number,
   angle: number,
   size: number,
-): ReturnType<typeof Skia.Path.Make> {
-  const path = Skia.Path.Make();
+) {
   const a1 = angle + Math.PI * 0.8;
   const a2 = angle - Math.PI * 0.8;
-  path.moveTo(x, y);
-  path.lineTo(x + size * Math.cos(a1), y + size * Math.sin(a1));
-  path.lineTo(x + size * Math.cos(a2), y + size * Math.sin(a2));
-  path.close();
-  return path;
+  return Skia.PathBuilder.Make()
+    .moveTo(x, y)
+    .lineTo(x + size * Math.cos(a1), y + size * Math.sin(a1))
+    .lineTo(x + size * Math.cos(a2), y + size * Math.sin(a2))
+    .close()
+    .detach();
 }
 
 /**
@@ -149,12 +149,21 @@ function EdgeRendererMemoized({edge, fromNode, toNode, offsetX = 0, offsetY = 0}
     edge.fromSide, edge.toSide, offsetX, offsetY,
   ]);
 
-  const curvePath = useMemo(() => {
-    const p = Skia.Path.Make();
-    p.moveTo(geometry.from.x, geometry.from.y);
-    p.cubicTo(geometry.cp1.x, geometry.cp1.y, geometry.cp2.x, geometry.cp2.y, geometry.to.x, geometry.to.y);
-    return p;
-  }, [geometry]);
+  const curvePath = useMemo(
+    () =>
+      Skia.PathBuilder.Make()
+        .moveTo(geometry.from.x, geometry.from.y)
+        .cubicTo(
+          geometry.cp1.x,
+          geometry.cp1.y,
+          geometry.cp2.x,
+          geometry.cp2.y,
+          geometry.to.x,
+          geometry.to.y,
+        )
+        .detach(),
+    [geometry],
+  );
 
   const {fromArrowPath, toArrowPath} = useMemo(() => {
     const fAngle = bezierEndAngle(geometry.from, geometry.cp1);
@@ -208,12 +217,14 @@ function EdgeRendererInline({edge, fromNode, toNode, offsetX = 0, offsetY = 0}: 
   const showFromArrow = edge.fromEnd === 'arrow';
   const showToArrow = edge.toEnd !== 'none';
 
-  const curvePath = useMemo(() => {
-    const p = Skia.Path.Make();
-    p.moveTo(from.x, from.y);
-    p.cubicTo(cp1.x, cp1.y, cp2.x, cp2.y, to.x, to.y);
-    return p;
-  }, [from.x, from.y, cp1.x, cp1.y, cp2.x, cp2.y, to.x, to.y]);
+  const curvePath = useMemo(
+    () =>
+      Skia.PathBuilder.Make()
+        .moveTo(from.x, from.y)
+        .cubicTo(cp1.x, cp1.y, cp2.x, cp2.y, to.x, to.y)
+        .detach(),
+    [from.x, from.y, cp1.x, cp1.y, cp2.x, cp2.y, to.x, to.y],
+  );
 
   // Arrow angles follow the bezier tangent at the endpoints
   const fromAngle = bezierEndAngle(from, cp1);
