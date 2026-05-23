@@ -1,4 +1,7 @@
-import type {CanvasNode, CanvasEdge} from './types';
+import type {CanvasNode, CanvasEdge, CanvasColor} from './types';
+
+/** Background fit modes for group-node images. Mirrors GroupNode.backgroundStyle. */
+export type GroupBackgroundStyle = 'cover' | 'ratio' | 'repeat';
 
 export type Operation =
   | {type: 'addNode'; node: CanvasNode}
@@ -14,11 +17,50 @@ export type Operation =
     }
   | {type: 'addEdge'; edge: CanvasEdge}
   | {type: 'removeEdge'; edgeId: string; edge: CanvasEdge}
+  // Per-field update variants. Each carries the new value and the prev value
+  // for invertOperation. Replaces the old `updateNodeContent` / `Partial<T>`
+  // shape that didn't translate cleanly to a Rust enum over JSI/wasm-bindgen.
+  // x / y / width / height live in moveNode / resizeNode above and are
+  // intentionally not included here.
   | {
-      type: 'updateNodeContent';
+      type: 'updateNodeColor';
       nodeId: string;
-      changes: Partial<CanvasNode>;
-      prevValues: Partial<CanvasNode>;
+      color: CanvasColor | undefined;
+      prevColor: CanvasColor | undefined;
+    }
+  | {
+      type: 'updateTextNodeText';
+      nodeId: string;
+      text: string;
+      prevText: string;
+    }
+  | {
+      type: 'updateLinkNodeUrl';
+      nodeId: string;
+      url: string;
+      prevUrl: string;
+    }
+  | {
+      type: 'updateFileNode';
+      nodeId: string;
+      file: string;
+      subpath: string | undefined;
+      prevFile: string;
+      prevSubpath: string | undefined;
+    }
+  | {
+      type: 'updateGroupNodeLabel';
+      nodeId: string;
+      label: string | undefined;
+      prevLabel: string | undefined;
+    }
+  | {
+      type: 'updateGroupNodeBackground';
+      nodeId: string;
+      background: string | undefined;
+      backgroundStyle: GroupBackgroundStyle | undefined;
+      prevBackground: string | undefined;
+      prevBackgroundStyle: GroupBackgroundStyle | undefined;
     };
 
 export function invertOperation(op: Operation): Operation {
@@ -49,12 +91,51 @@ export function invertOperation(op: Operation): Operation {
       return {type: 'removeEdge', edgeId: op.edge.id, edge: op.edge};
     case 'removeEdge':
       return {type: 'addEdge', edge: op.edge};
-    case 'updateNodeContent':
+    case 'updateNodeColor':
       return {
-        type: 'updateNodeContent',
+        type: 'updateNodeColor',
         nodeId: op.nodeId,
-        changes: op.prevValues,
-        prevValues: op.changes,
+        color: op.prevColor,
+        prevColor: op.color,
+      };
+    case 'updateTextNodeText':
+      return {
+        type: 'updateTextNodeText',
+        nodeId: op.nodeId,
+        text: op.prevText,
+        prevText: op.text,
+      };
+    case 'updateLinkNodeUrl':
+      return {
+        type: 'updateLinkNodeUrl',
+        nodeId: op.nodeId,
+        url: op.prevUrl,
+        prevUrl: op.url,
+      };
+    case 'updateFileNode':
+      return {
+        type: 'updateFileNode',
+        nodeId: op.nodeId,
+        file: op.prevFile,
+        subpath: op.prevSubpath,
+        prevFile: op.file,
+        prevSubpath: op.subpath,
+      };
+    case 'updateGroupNodeLabel':
+      return {
+        type: 'updateGroupNodeLabel',
+        nodeId: op.nodeId,
+        label: op.prevLabel,
+        prevLabel: op.label,
+      };
+    case 'updateGroupNodeBackground':
+      return {
+        type: 'updateGroupNodeBackground',
+        nodeId: op.nodeId,
+        background: op.prevBackground,
+        backgroundStyle: op.prevBackgroundStyle,
+        prevBackground: op.background,
+        prevBackgroundStyle: op.backgroundStyle,
       };
   }
 }
