@@ -175,6 +175,16 @@ None of these reach `src/gtk/`: GTKX generates its bindings inside the app
 that uses them, so the GTK renderer is typechecked and tested by its
 consumer (Workspace's Linux client). See `AGENTS.md`.
 
+### Strategic direction
+
+The library is structured to allow `src/core/` to be replaced by a Rust
+crate exposed via JSI (native) and `wasm-bindgen` (web, and GTK on Linux) in
+a future major version. The renderers (`src/renderer/` and `src/gtk/`) stay
+in TypeScript. See
+[`docs/rust-core-port-plan.md`](docs/rust-core-port-plan.md) for the
+sub-issue decomposition and open architectural questions tracked under
+[#6](https://github.com/workspace-sh/react-native-jsoncanvas/issues/6).
+
 ### Example apps
 
 Example harnesses live under `example/` and follow the org's standard layout
