@@ -58,10 +58,44 @@ The renderer is consumed through `CanvasView`. The core surface (`parseCanvas`, 
 
 ```sh
 npm install
-npm test         # jest — runs src/**/__tests__
+npm test          # jest — runs src/**/__tests__
 npm run typecheck # tsc --noEmit
-npm run lint     # eslint src
+npm run lint      # eslint src
 ```
 
 Tests use a separate `tsconfig.test.json` so the library's main `tsconfig.json` stays free of `jest` / `node` types.
+
+### Example apps
+
+Example harnesses live under `example/` and follow the org's standard layout
+(mirrors `react-native-source-editor/example/*`):
+
+- **`example/expo-app/`** — Expo SDK 55 host serving iOS + Android. Uses Expo
+  CNG, owned by `expo prebuild` — never run `pod install` (iOS) or hand-edit
+  `android/` here manually.
+- **`example/macos-app/`** — `react-native-macos` 0.81 host. Tracked in #21.
+
+Each example imports the library through Metro's `extraNodeModules` mapping
+back to repo root. Edits to `src/` hot-reload via Metro's watcher.
+
+All commands run from the repo root:
+
+```sh
+# iOS
+npm run ios:run              # First run: full Xcode build + sim launch
+npm run ios:start            # Metro only (build already exists)
+npm run ios:clear            # watchman watch-del-all + reset Metro cache
+npm run ios:dev              # concurrently: clear + run
+npm run ios:run:device       # tethered iOS device
+npm run ios:prebuild         # regenerate ios/ from app.json (CNG)
+npm run ios:clean            # delete ios/ — pair with :prebuild
+
+# Android (same surface)
+npm run android:run
+npm run android:start
+npm run android:dev
+# … etc.
+```
+
+(macOS scripts arrive with #21.)
 
