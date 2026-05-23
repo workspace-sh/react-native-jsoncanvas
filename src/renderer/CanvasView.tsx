@@ -658,8 +658,14 @@ export function CanvasView({content, basePath, renderMarkdown, initialViewState,
   // both — pinching never blocks tap detection at gesture-handler level
   // (handleDoubleTap also gates on isPinching for in-flight pinch frames).
   const tapGesture = useMemo(() => {
+    // macOS native convention for "double-tap to zoom" is a two-finger
+    // double-tap on the trackpad (Safari Smart Zoom, Preview zoom-to-page).
+    // iOS / Android / web all use single-finger. Branch the pointer count to
+    // match each platform's expectation. See #23.
+    const minPointers = Platform.OS === 'macos' ? 2 : 1;
     let g = Gesture.Tap()
       .numberOfTaps(2)
+      .minPointers(minPointers)
       .maxDistance(DOUBLE_TAP_MAX_DISTANCE);
     if (doubleTapMaxDelayMs != null) {
       g = g.maxDelay(doubleTapMaxDelayMs);

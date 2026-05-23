@@ -685,9 +685,10 @@ function drawEdge(canvas: SkCanvas, edge: CanvasEdge, fromNode: CanvasNode, toNo
   const {cp1, cp2} = computeControlPoints(from, to, edge.fromSide, edge.toSide);
 
   // Curve
-  const curvePath = Skia.Path.Make();
-  curvePath.moveTo(from.x, from.y);
-  curvePath.cubicTo(cp1.x, cp1.y, cp2.x, cp2.y, to.x, to.y);
+  const curvePath = Skia.PathBuilder.Make()
+    .moveTo(from.x, from.y)
+    .cubicTo(cp1.x, cp1.y, cp2.x, cp2.y, to.x, to.y)
+    .detach();
   canvas.drawPath(curvePath, useStrokePaint(color, 2));
 
   // Arrows
@@ -695,11 +696,12 @@ function drawEdge(canvas: SkCanvas, edge: CanvasEdge, fromNode: CanvasNode, toNo
     const size = 8;
     const a1 = angle + Math.PI * 0.8;
     const a2 = angle - Math.PI * 0.8;
-    const path = Skia.Path.Make();
-    path.moveTo(x, y);
-    path.lineTo(x + size * Math.cos(a1), y + size * Math.sin(a1));
-    path.lineTo(x + size * Math.cos(a2), y + size * Math.sin(a2));
-    path.close();
+    const path = Skia.PathBuilder.Make()
+      .moveTo(x, y)
+      .lineTo(x + size * Math.cos(a1), y + size * Math.sin(a1))
+      .lineTo(x + size * Math.cos(a2), y + size * Math.sin(a2))
+      .close()
+      .detach();
     canvas.drawPath(path, useFillPaint(color));
   };
 
