@@ -97,5 +97,34 @@ npm run android:dev
 # … etc.
 ```
 
-(macOS scripts arrive with #21.)
+### Playground app (macOS)
+
+A bare-RN + `react-native-macos` harness lives at `example/macos-app/`.
+Sibling to the Expo playground; same `CanvasView` + Fit / Recenter shape
+and same `hesprs-demo` fixture, but in a vanilla macOS window rather
+than Expo.
+
+First-time setup — generates the native `macos/` Xcode project from
+`react-native-macos`'s templates (one Mac-only command):
+
+```sh
+npm run desktop:install   # workspace dep install for the macOS app
+npm run desktop:init      # native macos/ scaffold + pod install
+```
+
+Subsequent runs, from the repo root:
+
+```sh
+npm run desktop:macos     # Metro on port 8083, build + launch macOS app
+npm run desktop:start     # Metro only (after the app is already built)
+npm run desktop:pods      # Re-run pod install if a native dep changes
+npm run desktop:clear     # Reset Metro cache + watchman
+```
+
+Port `8083` matches Workspace's `desktop:*` convention, leaving `8082`
+free for the Expo playground when both are running. React-version
+isolation is handled in `example/macos-app/metro.config.js` —
+`react-native-macos@0.81` pins `react@19.1.4` exact, the Expo playground
+uses `react@19.2.0`, and Metro forces this app's local copy to win every
+resolution.
 

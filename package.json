@@ -33,7 +33,15 @@
     "android:clear": "cd example/expo-app && watchman watch-del-all && npx expo start --clear",
     "android:run": "cd example/expo-app && npx expo run:android",
     "android:run:device": "cd example/expo-app && npx expo run:android --device",
-    "android:dev": "concurrently \"npm run android:clear\" \"npm run android:run\""
+    "android:dev": "concurrently \"npm run android:clear\" \"npm run android:run\"",
+    "desktop:install": "cd example/macos-app && npm install",
+    "desktop:init": "cd example/macos-app && npx --package react-native-macos@^0.81 react-native-macos-init && cd macos && pod install",
+    "desktop:pods": "cd example/macos-app/macos && pod install",
+    "desktop:clean": "rm -rf example/macos-app/macos/build example/macos-app/macos/Pods",
+    "desktop:start": "cd example/macos-app && npx react-native start --port 8083",
+    "desktop:clear": "cd example/macos-app && watchman watch-del-all && npx react-native start --port 8083 --reset-cache",
+    "desktop:macos": "cd example/macos-app && npx react-native run-macos --port 8083",
+    "desktop:dev": "concurrently \"npm run desktop:clear\" \"npm run desktop:macos\""
   },
   "engines": {
     "node": ">=20"
