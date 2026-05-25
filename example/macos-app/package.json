@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "start": "react-native start --port 8083",
-    "macos": "react-native run-macos --port 8083"
+    "macos": "react-native run-macos --port 8083",
+    "postinstall": "node ./scripts/link-hoisted-rn.js"
   },
   "dependencies": {
     "@shopify/react-native-skia": "^2.6.1",
