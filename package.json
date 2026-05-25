@@ -35,7 +35,6 @@
     "android:run:device": "cd example/expo-app && npx expo run:android --device",
     "android:dev": "concurrently \"npm run android:clear\" \"npm run android:run\"",
     "desktop:install": "cd example/macos-app && npm install --legacy-peer-deps",
-    "desktop:init": "echo 'react-native-macos-init does not work cleanly inside npm workspaces. See example/macos-app/README.md for the one-time manual setup steps.' && exit 1",
     "desktop:pods": "cd example/macos-app/macos && pod install",
     "desktop:clean": "rm -rf example/macos-app/macos/build example/macos-app/macos/Pods",
     "desktop:start": "cd example/macos-app && npx react-native start --port 8083",

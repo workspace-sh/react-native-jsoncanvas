@@ -104,21 +104,20 @@ Sibling to the Expo playground; same `CanvasView` + Fit / Recenter shape
 and same `hesprs-demo` fixture, but in a vanilla macOS window rather
 than Expo.
 
-First-time setup — generates the native `macos/` Xcode project from
-`react-native-macos`'s templates (one Mac-only command):
+The native `macos/` scaffold ships with the repo (lifted from the
+known-good [`enriched-markdown-macos-harness`](https://github.com/workspace-sh/enriched-markdown-macos-harness)
+template — see `example/macos-app/README.md` for the why). No
+`react-native-macos-init` step required.
+
+From the repo root:
 
 ```sh
-npm run desktop:install   # workspace dep install for the macOS app
-npm run desktop:init      # native macos/ scaffold + pod install
-```
-
-Subsequent runs, from the repo root:
-
-```sh
+npm run desktop:install   # workspace deps (--legacy-peer-deps)
+npm run desktop:pods      # pod install inside macos/
 npm run desktop:macos     # Metro on port 8083, build + launch macOS app
 npm run desktop:start     # Metro only (after the app is already built)
-npm run desktop:pods      # Re-run pod install if a native dep changes
 npm run desktop:clear     # Reset Metro cache + watchman
+npm run desktop:clean     # rm macos/build + macos/Pods (cold rebuild)
 ```
 
 Port `8083` matches Workspace's `desktop:*` convention, leaving `8082`
