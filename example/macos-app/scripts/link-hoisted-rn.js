@@ -1,46 +1,53 @@
 #!/usr/bin/env node
-// Postinstall: ensure `react-native` is resolvable at
-// node_modules/react-native relative to this app's macos/Pods directory,
-// even when npm has hoisted it to the monorepo root.
+// Postinstall: symlink hoisted React Native packages into this app's local
+// node_modules, so pbxproj build scripts that hardcode relative paths
+// (`../node_modules/<pkg>/...`) resolve correctly under npm workspaces.
 //
-// Why: bare RN's Pod build scripts (notably hermes-engine's
-// "Replace Hermes for the right configuration, if needed" phase) hardcode
-// `$PODS_ROOT/../../node_modules/react-native/scripts/xcode/with-environment.sh`.
-// Under npm workspaces, react-native often hoists out of the app's local
-// node_modules and the script's relative path resolves to a non-existent
-// file, causing xcodebuild to fail with PhaseScriptExecution errors before
-// any source actually compiles.
+// Why
 //
-// Fix: drop a symlink at example/macos-app/node_modules/react-native that
-// points at whichever react-native the monorepo actually resolved. Idempotent
-// — if a real install already exists locally, leave it alone.
+// Bare-RN's Pod and target build scripts (hermes-engine's "Replace Hermes
+// for the right configuration, if needed", the workspace-macOS target's
+// "Bundle React Native code and images", etc.) hardcode relative paths
+// from the macos/ dir into ../node_modules/<pkg>. Under npm workspaces,
+// those packages frequently hoist out of the app's local node_modules and
+// the script's relative path resolves to a non-existent file. xcodebuild
+// then fails with PhaseScriptExecution errors before any source compiles.
+//
+// Workspace's apps/desktop avoids this because apps/mobile pins a different
+// react-native major (0.83 vs 0.81), forcing npm to keep both local. Our
+// example apps' pins happen to coexist at root, so we don't get the same
+// accidental local install.
+//
+// Fix
+//
+// For each package listed in PACKAGES below, walk up node_modules
+// ancestors to find whichever copy the monorepo resolved, and symlink it
+// into this app's local node_modules. Idempotent — leaves real local
+// installs alone, recreates stale symlinks on every npm install.
+//
+// Add packages to PACKAGES as new "package not found" errors surface from
+// xcodebuild. The autolinker uses absolute paths for most native modules
+// (gesture-handler, reanimated, worklets, skia) so they're not affected;
+// only the build-phase scripts that bake in relative paths at the
+// xcodeproj level need this workaround.
 
 const fs = require('node:fs');
 const path = require('node:path');
 
+const PACKAGES = [
+  // Required by hermes-engine's "Replace Hermes" Pod script
+  'react-native',
+  // Required by the workspace-macOS target's "Bundle React Native code and
+  // images" build phase (react-native-xcode.sh)
+  'react-native-macos',
+];
+
 const appDir = path.resolve(__dirname, '..');
-const localRnPath = path.join(appDir, 'node_modules', 'react-native');
 
-// Already installed locally? (real directory, not a symlink we made)
-try {
-  const stat = fs.lstatSync(localRnPath);
-  if (stat.isDirectory() && !stat.isSymbolicLink()) {
-    console.log('[link-hoisted-rn] react-native is installed locally; nothing to do.');
-    process.exit(0);
-  }
-  // Existing symlink — clear it and re-create (handles npm install churn)
-  if (stat.isSymbolicLink()) {
-    fs.unlinkSync(localRnPath);
-  }
-} catch (_) {
-  // doesn't exist yet — fall through to create it
-}
-
-// Find the hoisted react-native by walking up node_modules ancestors.
-function findHoisted(startDir) {
+function findHoisted(packageName, startDir) {
   let dir = startDir;
   while (true) {
-    const candidate = path.join(dir, 'node_modules', 'react-native');
+    const candidate = path.join(dir, 'node_modules', packageName);
     if (fs.existsSync(path.join(candidate, 'package.json'))) {
       return candidate;
     }
@@ -50,18 +57,43 @@ function findHoisted(startDir) {
   }
 }
 
-const hoisted = findHoisted(path.dirname(appDir));
-if (!hoisted) {
-  console.error(
-    '[link-hoisted-rn] could not find react-native in any ancestor node_modules. ' +
-      'Run `npm install` at the repo root first.',
+function linkOne(packageName) {
+  const localPath = path.join(appDir, 'node_modules', packageName);
+
+  // Already installed locally? (real directory, not a symlink we made)
+  try {
+    const stat = fs.lstatSync(localPath);
+    if (stat.isDirectory() && !stat.isSymbolicLink()) {
+      console.log(`[link-hoisted-rn] ${packageName} is installed locally; nothing to do.`);
+      return;
+    }
+    if (stat.isSymbolicLink()) {
+      fs.unlinkSync(localPath);
+    }
+  } catch (_) {
+    // doesn't exist yet — fall through to create it
+  }
+
+  const hoisted = findHoisted(packageName, path.dirname(appDir));
+  if (!hoisted) {
+    console.error(
+      `[link-hoisted-rn] could not find ${packageName} in any ancestor node_modules. ` +
+        `Run \`npm install\` at the repo root first.`,
+    );
+    process.exit(1);
+  }
+
+  // For scoped packages (e.g. @shopify/react-native-skia), ensure the
+  // @scope/ parent dir exists before creating the symlink inside it.
+  fs.mkdirSync(path.dirname(localPath), {recursive: true});
+  const relativeTarget = path.relative(path.dirname(localPath), hoisted);
+  fs.symlinkSync(relativeTarget, localPath, 'dir');
+
+  console.log(
+    `[link-hoisted-rn] symlinked node_modules/${packageName} -> ${relativeTarget}`,
   );
-  process.exit(1);
 }
 
-// Ensure local node_modules exists, then symlink.
-fs.mkdirSync(path.dirname(localRnPath), {recursive: true});
-const relativeTarget = path.relative(path.dirname(localRnPath), hoisted);
-fs.symlinkSync(relativeTarget, localRnPath, 'dir');
-
-console.log(`[link-hoisted-rn] symlinked node_modules/react-native -> ${relativeTarget}`);
+for (const pkg of PACKAGES) {
+  linkOne(pkg);
+}
