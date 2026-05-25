@@ -15,26 +15,71 @@ natively on macOS, not to recreate
 
 This PR ships **only the JavaScript / TypeScript / Metro / Babel
 configuration**. The native `macos/` directory (Xcode project,
-Podfile, AppDelegate, NativeModules) needs to be generated once, on
-a Mac with Xcode + CocoaPods installed:
+Podfile, AppDelegate, NativeModules) has to be generated once. The
+recommended upstream tool (`react-native-macos-init`) currently has
+three compatibility issues we hit when validating from inside this
+workspace:
+
+1. **`react-native-macos-init` doesn't run inside npm workspaces**.
+   It internally calls `npm install` which errors with `ENOWORKSPACES`.
+   `--no-workspaces` doesn't get propagated into the tool's own
+   subprocess.
+2. **Peer-dep resolution conflict**. The community RN 0.81 template
+   installs `react@19.1.0`, but `react-native-macos@0.81.7` peers
+   `react@^19.1.4`. Without `--legacy-peer-deps` on the init's npm
+   call (also not pluggable through the tool), the install fails
+   with `ERESOLVE`.
+3. **Node version sensitivity**. The init's template generator calls
+   `util.styleText`, which only exists on Node ≥ 20.12. If `npx`
+   resolves a Node binary older than that (which it can, depending on
+   your `nvm` / system Node setup), generation fails partway through
+   with empty output directories.
+
+Until upstream fixes these (Microsoft RN-macOS team is aware of #1
+and #3 per their issue tracker), the manual procedure is:
 
 ```sh
-cd example/macos-app
-# Initialise the native macos/ scaffold via react-native-macos's CLI.
-# Use the same major as our react-native dep (^0.81) so AppDelegate
-# / Podfile templates match.
-npx --package react-native-macos@^0.81 react-native-macos-init
-cd macos && pod install
+# 1. Bootstrap a fresh RN project OUTSIDE this monorepo so npm
+#    workspaces doesn't interfere.
+mkdir -p /tmp/rnm-bootstrap && cd /tmp/rnm-bootstrap
+npx @react-native-community/cli@latest init macosapp \
+  --template @react-native-community/template@0.81.0 \
+  --skip-install --skip-git-init --pm npm
+cd macosapp
+
+# 2. Install with --legacy-peer-deps to dodge the react@19.1.0 vs
+#    19.1.4 peer-dep conflict; ensure Node ≥ 20.12 is active.
+node --version  # must be >= 20.12
+npm install --legacy-peer-deps
+
+# 3. Run init. The `styleText` errors are noisy but file generation
+#    completes on Node 20.12+.
+npx react-native-macos-init
+
+# 4. Copy the generated macos/ back into this repo's example/macos-app/.
+cp -R macos /path/to/react-native-jsoncanvas/example/macos-app/macos
+
+# 5. Find-and-replace any references to `macosapp` in the copied files
+#    with this app's actual name (the bundle id, Xcode scheme, etc.).
+#    grep -r macosapp /path/to/example/macos-app/macos
 ```
 
-Once `macos/` exists, run from the **repo root**:
+Once `macos/` exists in `example/macos-app/`, run from the **repo
+root**:
 
 ```sh
-npm run desktop:macos
+cd /path/to/react-native-jsoncanvas
+npm run desktop:pods   # pod install inside example/macos-app/macos/
+npm run desktop:macos  # Metro on 8083 + xcodebuild + launch
 ```
 
-This starts Metro on port 8083 (avoids clashing with the Expo
-playground's 8082) and launches the macOS app via Xcode.
+The `desktop:install` script at root uses `--legacy-peer-deps` to
+match the conditions the bootstrap step assumes.
+
+This whole dance is upstream-tooling friction, not anything we can
+fix in this repo. If you don't need a macOS harness right now, the
+Expo playground (`example/expo-app/`) covers iOS / Android / web
+without any of this pain.
 
 ## What this harness is, deliberately
 
