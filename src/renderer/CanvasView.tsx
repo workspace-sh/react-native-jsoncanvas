@@ -11,7 +11,7 @@ import {
 } from '../core';
 import {SkiaCanvasLayer} from './SkiaCanvasLayer';
 import {CanvasMinimap, type MinimapPosition} from './CanvasMinimap';
-import {scrollWheelEvents, type ScrollWheelEvent} from './NativeScrollWheelView';
+import {scrollWheelEvents, type ScrollWheelEvent, type SmartMagnifyEvent} from './NativeScrollWheelView';
 import {resolveScheme, getMutedTextColor, type ColorScheme} from './theme';
 import {CanvasProvider} from './CanvasContext';
 import {useViewportCulling} from './useViewportCulling';
@@ -502,6 +502,25 @@ export function CanvasView({content, basePath, renderMarkdown, initialViewState,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Trackpad two-finger double-tap on macOS — Safari's "Smart Zoom" (#33).
+  // RNGH's TapGesture can't see trackpad multi-finger taps on RNGH-macos
+  // (every trackpad tap arrives as a single-pointer event; `minPointers(2)`
+  // fails on first touch and the gesture never starts). We bypass RNGH
+  // entirely via the native `smartMagnify` event. iOS keeps the
+  // single-finger RNGH double-tap below.
+  useEffect(() => {
+    if (!scrollWheelEvents) return;
+    const sub = scrollWheelEvents.addListener(
+      'onSmartMagnify',
+      (event: SmartMagnifyEvent) => {
+        const wx = (event.x - translateX.value) / scale.value;
+        const wy = (event.y - translateY.value) / scale.value;
+        handleDoubleTap(wx, wy);
+      },
+    );
+    return () => sub.remove();
+  }, [translateX, translateY, scale, handleDoubleTap]);
+
   // Two-finger trackpad scroll to pan
   useEffect(() => {
     if (!scrollWheelEvents) return;
@@ -658,14 +677,8 @@ export function CanvasView({content, basePath, renderMarkdown, initialViewState,
   // both — pinching never blocks tap detection at gesture-handler level
   // (handleDoubleTap also gates on isPinching for in-flight pinch frames).
   const tapGesture = useMemo(() => {
-    // macOS native convention for "double-tap to zoom" is a two-finger
-    // double-tap on the trackpad (Safari Smart Zoom, Preview zoom-to-page).
-    // iOS / Android / web all use single-finger. Branch the pointer count to
-    // match each platform's expectation. See #23.
-    const minPointers = Platform.OS === 'macos' ? 2 : 1;
     let g = Gesture.Tap()
       .numberOfTaps(2)
-      .minPointers(minPointers)
       .maxDistance(DOUBLE_TAP_MAX_DISTANCE);
     if (doubleTapMaxDelayMs != null) {
       g = g.maxDelay(doubleTapMaxDelayMs);
@@ -673,6 +686,13 @@ export function CanvasView({content, basePath, renderMarkdown, initialViewState,
     return g.onEnd((event, success) => {
       'worklet';
       if (!success) return;
+      // macOS uses Safari's native two-finger Smart Zoom gesture (#33) —
+      // handled separately by the `onSmartMagnify` listener above. The
+      // RNGH tap still races with pan here so single-finger double-clicks
+      // don't accidentally trigger pan logic, but the click itself is a
+      // no-op. iOS keeps single-finger double-tap zoom (touchscreen
+      // convention).
+      if (Platform.OS === 'macos') return;
       const wx = (event.x - translateX.value) / scale.value;
       const wy = (event.y - translateY.value) / scale.value;
       scheduleOnRN(handleDoubleTap, wx, wy);
