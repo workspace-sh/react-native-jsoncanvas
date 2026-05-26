@@ -35,6 +35,11 @@ interface SkiaCanvasLayerProps {
   viewportHeight: number;
   basePath?: string;
   isPinching: SharedValue<boolean>;
+  // True for the duration of a `fitToViewport` / `recenter` /
+  // `zoomToNode` interpolation. Used together with `isPinching` to
+  // reveal the pre-recorded Picture overlay so the live Skia tree
+  // doesn't re-paint at every animated scale (#35).
+  isCameraAnimating: SharedValue<boolean>;
 }
 
 function useCameraMatrix(camera: CameraValues) {
@@ -63,6 +68,7 @@ export function SkiaCanvasLayer({
   viewportHeight,
   basePath,
   isPinching,
+  isCameraAnimating,
 }: SkiaCanvasLayerProps) {
   const matrix = useCameraMatrix(camera);
 
@@ -75,11 +81,14 @@ export function SkiaCanvasLayer({
 
   const picture = useCanvasPicture({allNodes: enrichedNodes as CanvasNode[], edges, nodeMap: nodes, colorScheme, basePath});
 
-  // Picture overlay opacity driven by shared value — no runOnJS, no React
-  // reconciliation. Skia picks up the change on the next frame.
+  // Picture overlay opacity driven by shared values — no runOnJS, no React
+  // reconciliation. Skia picks up the change on the next frame. Reveals
+  // the overlay during pinch AND during camera-animation tweens
+  // (fit/recenter/zoom-to-node), so the live Skia tree doesn't re-paint
+  // at every animated scale step (#35).
   const pictureOpacity = useDerivedValue(() => {
     'worklet';
-    return isPinching.value ? 1 : 0;
+    return (isPinching.value || isCameraAnimating.value) ? 1 : 0;
   });
   const showPicture = devFlags.enablePictureRecording && picture != null;
 
