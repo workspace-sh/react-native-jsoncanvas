@@ -10,7 +10,7 @@
   // `moduleName` must match `AppRegistry.registerComponent(...)` on the JS
   // side (driven by `name` in app.json) — keep this in sync with index.js,
   // not with the display name.
-  self.moduleName = @"workspace";
+  self.moduleName = @"jsoncanvas";
   // You can add your custom initial props in the dictionary below.
   // They will be passed down to the ViewController used by React Native.
   self.initialProps = @{};
@@ -20,8 +20,9 @@
 
   // `RCTAppDelegate` defaults the window title to `self.moduleName`
   // (RCTAppDelegate.mm:86) so the titlebar would otherwise read
-  // "workspace". Override here with the human-facing display name —
-  // sourced from app.json's `displayName` to keep JS and native in sync.
+  // "jsoncanvas". Override here with the human-facing display name —
+  // sourced from `CFBundleName` (which mirrors `displayName` in
+  // app.json) to keep JS and native in sync.
   NSString *displayName =
       [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleName"];
   if (displayName.length > 0) {
