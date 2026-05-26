@@ -10,19 +10,53 @@ interface CameraValues {
   scale: SharedValue<number>;
 }
 
+interface CullingOptions {
+  /**
+   * When true, the dead-zone-gated cull recompute is suppressed.
+   * `CanvasView` flips this for the duration of `fit` / `recenter` /
+   * `zoom-to-node` tweens — running the recompute mid-tween triggers a
+   * React re-render of `SkiaCanvasLayer`, which inserts/removes nodes in
+   * the live tree at interpolated scales and causes visible jank in the
+   * 300ms window. The recompute is run once explicitly at animation end
+   * (see `animateCamera` in CanvasView) so the post-animation visible
+   * set is correct.
+   */
+  isCameraAnimating?: SharedValue<boolean>;
+}
+
 function rectsIntersect(a: Rect, b: Rect): boolean {
   return a.x < b.x + b.width && a.x + a.width > b.x &&
          a.y < b.y + b.height && a.y + a.height > b.y;
 }
 
-function computePaddedViewport(tx: number, ty: number, s: number, sw: number, sh: number): Rect {
+// Padding multiplier around the viewport. Mobile uses 3× (1 viewport on
+// each side); desktop uses 5× (2 viewports on each side) because pointer-
+// driven pan + trackpad pan + camera animations cover ground faster than
+// touch flicks on phones, and the JS-thread cull recompute happens less
+// often (dead-zone gated below) — so the cushion needs to absorb more
+// camera movement between recomputes. Tracked in #35 — start at 5×, tune
+// if profiling shows we're paying for nodes well off-screen.
+const PADDING_MULTIPLIER = Platform.OS === 'macos' ? 5 : 3;
+
+function computePaddedViewport(
+  tx: number,
+  ty: number,
+  s: number,
+  sw: number,
+  sh: number,
+  multiplier: number,
+): Rect {
   const worldW = sw / s;
   const worldH = sh / s;
+  // (multiplier - 1) / 2 worldW of padding on each side, viewport
+  // centred. For multiplier = 3, that's 1 worldW each side (3× total);
+  // for multiplier = 5, 2 worldW each side (5× total).
+  const padFactor = (multiplier - 1) / 2;
   return {
-    x: -tx / s - worldW,
-    y: -ty / s - worldH,
-    width: worldW * 3,
-    height: worldH * 3,
+    x: -tx / s - worldW * padFactor,
+    y: -ty / s - worldH * padFactor,
+    width: worldW * multiplier,
+    height: worldH * multiplier,
   };
 }
 
@@ -34,7 +68,9 @@ function computePaddedViewport(tx: number, ty: number, s: number, sw: number, sh
  * significantly, avoiding excessive JS-thread work during gestures.
  *
  * Returns all nodes/edges unfiltered when viewport bounds are unknown
- * (initial render, desktop) or when Platform.OS is 'macos'.
+ * (initial render, before the first camera-move past the dead zone).
+ * Once bounds are known, culling is active on all platforms — desktop
+ * uses a more generous padding multiplier (see `PADDING_MULTIPLIER`).
  */
 export function useViewportCulling(
   camera: CameraValues,
@@ -42,11 +78,15 @@ export function useViewportCulling(
   screenHeight: number,
   allNodes: CanvasNode[],
   allEdges: CanvasEdge[],
+  options: CullingOptions = {},
 ) {
+  const {isCameraAnimating} = options;
   const [viewportBounds, setViewportBounds] = useState<Rect | null>(null);
 
   const updateBounds = useCallback((tx: number, ty: number, s: number) => {
-    setViewportBounds(computePaddedViewport(tx, ty, s, screenWidth, screenHeight));
+    setViewportBounds(
+      computePaddedViewport(tx, ty, s, screenWidth, screenHeight, PADDING_MULTIPLIER),
+    );
   }, [screenWidth, screenHeight]);
 
   // Dead-zone gated bridge from UI thread to JS thread
@@ -62,7 +102,11 @@ export function useViewportCulling(
     }),
     (current) => {
       'worklet';
-      if (Platform.OS === 'macos') return;
+      // Suppress mid-animation recomputes — they trigger React re-renders
+      // of SkiaCanvasLayer inside the 300ms tween, which manifests as
+      // visible chop on macOS double-tap zoom. Final visible-set update
+      // runs explicitly from `animateCamera`'s completion branch.
+      if (isCameraAnimating?.value) return;
       const threshold = 0.25 * Math.min(screenWidth, screenHeight);
       const dTx = Math.abs(current.tx - lastTx.value);
       const dTy = Math.abs(current.ty - lastTy.value);
