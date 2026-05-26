@@ -10,6 +10,20 @@ interface CameraValues {
   scale: SharedValue<number>;
 }
 
+interface CullingOptions {
+  /**
+   * When true, the dead-zone-gated cull recompute is suppressed.
+   * `CanvasView` flips this for the duration of `fit` / `recenter` /
+   * `zoom-to-node` tweens — running the recompute mid-tween triggers a
+   * React re-render of `SkiaCanvasLayer`, which inserts/removes nodes in
+   * the live tree at interpolated scales and causes visible jank in the
+   * 300ms window. The recompute is run once explicitly at animation end
+   * (see `animateCamera` in CanvasView) so the post-animation visible
+   * set is correct.
+   */
+  isCameraAnimating?: SharedValue<boolean>;
+}
+
 function rectsIntersect(a: Rect, b: Rect): boolean {
   return a.x < b.x + b.width && a.x + a.width > b.x &&
          a.y < b.y + b.height && a.y + a.height > b.y;
@@ -64,7 +78,9 @@ export function useViewportCulling(
   screenHeight: number,
   allNodes: CanvasNode[],
   allEdges: CanvasEdge[],
+  options: CullingOptions = {},
 ) {
+  const {isCameraAnimating} = options;
   const [viewportBounds, setViewportBounds] = useState<Rect | null>(null);
 
   const updateBounds = useCallback((tx: number, ty: number, s: number) => {
@@ -86,6 +102,11 @@ export function useViewportCulling(
     }),
     (current) => {
       'worklet';
+      // Suppress mid-animation recomputes — they trigger React re-renders
+      // of SkiaCanvasLayer inside the 300ms tween, which manifests as
+      // visible chop on macOS double-tap zoom. Final visible-set update
+      // runs explicitly from `animateCamera`'s completion branch.
+      if (isCameraAnimating?.value) return;
       const threshold = 0.25 * Math.min(screenWidth, screenHeight);
       const dTx = Math.abs(current.tx - lastTx.value);
       const dTy = Math.abs(current.ty - lastTy.value);

@@ -378,10 +378,20 @@ export function CanvasView({content, basePath, renderMarkdown, initialViewState,
       } else {
         animFrameRef.current = null;
         isCameraAnimating.value = false;
+        // Refresh the culled visible set against the final camera state.
+        // `useViewportCulling`'s dead-zone reaction is suppressed for the
+        // duration of the tween (`isCameraAnimating` short-circuits it),
+        // so without this call the visible set would still reflect the
+        // pre-animation viewport until the next gesture nudge crosses
+        // the dead-zone threshold.
+        updateBounds(toTx, toTy, toScale);
         saveViewState();
       }
     };
     animFrameRef.current = requestAnimationFrame(tick);
+    // `updateBounds` declared in render order below; captured lazily by
+    // the rAF closure, same trick as the initial-fit useLayoutEffect (#300).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [translateX, translateY, scale, animCancelled, isCameraAnimating, cancelCameraAnim, saveViewState]);
 
   useEffect(() => () => cancelCameraAnim(), [cancelCameraAnim]);
@@ -740,9 +750,16 @@ export function CanvasView({content, basePath, renderMarkdown, initialViewState,
     [translateX, translateY, scale],
   );
 
-  // Viewport culling: filter nodes/edges to those near the visible area (mobile only)
+  // Viewport culling: filter nodes/edges to those near the visible area.
+  // `isCameraAnimating` is forwarded so the hook can suppress its dead-zone-
+  // gated React-thread recompute during fit/recenter/zoom-to-node tweens
+  // (otherwise the recompute fires mid-animation and reseeds the live tree
+  // at an interpolated scale, which reads as chop). The explicit recompute
+  // for the post-animation visible set runs from `animateCamera`'s
+  // completion branch below.
   const {visibleNodes, visibleEdges, updateBounds} = useViewportCulling(
     camera, viewportWidth, viewportHeight, allNodes, allEdges,
+    {isCameraAnimating},
   );
 
   const contextValue = useMemo(
