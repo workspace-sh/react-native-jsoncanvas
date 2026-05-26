@@ -8,7 +8,7 @@ require "#{ws_dir}/node_modules/react-native-macos/scripts/react_native_pods.rb"
 
 prepare_react_native_project!
 
-target 'workspace-macOS' do
+target 'jsoncanvas-macOS' do
   platform :macos, '14.0'
   use_native_modules!
 

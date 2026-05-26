@@ -13,23 +13,23 @@
 		514201522437B4B40078DB4F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 514201512437B4B40078DB4F /* Assets.xcassets */; };
 		514201552437B4B40078DB4F /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 514201532437B4B40078DB4F /* Main.storyboard */; };
 		514201582437B4B40078DB4F /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 514201572437B4B40078DB4F /* main.m */; };
-		7436F8FDE7A01C9CBA12693A /* libPods-workspace-macOS.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 89990ADD0C6878A135BDC733 /* libPods-workspace-macOS.a */; };
+		7436F8FDE7A01C9CBA12693A /* libPods-jsoncanvas-macOS.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 89990ADD0C6878A135BDC733 /* libPods-jsoncanvas-macOS.a */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		0FD7E1842A0A15596F891F3A /* Pods-workspace-macOS.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-workspace-macOS.release.xcconfig"; path = "Target Support Files/Pods-workspace-macOS/Pods-workspace-macOS.release.xcconfig"; sourceTree = "<group>"; };
-		13B07F961A680F5B00A75B9A /* workspace.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = workspace.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		476437D8D7B7D7D95A7B08B2 /* Pods-workspace-macOS.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-workspace-macOS.debug.xcconfig"; path = "Target Support Files/Pods-workspace-macOS/Pods-workspace-macOS.debug.xcconfig"; sourceTree = "<group>"; };
-		514201492437B4B30078DB4F /* workspace.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = workspace.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		0FD7E1842A0A15596F891F3A /* Pods-jsoncanvas-macOS.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-jsoncanvas-macOS.release.xcconfig"; path = "Target Support Files/Pods-jsoncanvas-macOS/Pods-jsoncanvas-macOS.release.xcconfig"; sourceTree = "<group>"; };
+		13B07F961A680F5B00A75B9A /* jsoncanvas.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = jsoncanvas.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		476437D8D7B7D7D95A7B08B2 /* Pods-jsoncanvas-macOS.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-jsoncanvas-macOS.debug.xcconfig"; path = "Target Support Files/Pods-jsoncanvas-macOS/Pods-jsoncanvas-macOS.debug.xcconfig"; sourceTree = "<group>"; };
+		514201492437B4B30078DB4F /* jsoncanvas.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = jsoncanvas.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5142014B2437B4B30078DB4F /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
 		5142014C2437B4B30078DB4F /* AppDelegate.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = AppDelegate.mm; sourceTree = "<group>"; };
 		514201512437B4B40078DB4F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		514201542437B4B40078DB4F /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
 		514201562437B4B40078DB4F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		514201572437B4B40078DB4F /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
-		514201592437B4B40078DB4F /* workspace.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = workspace.entitlements; sourceTree = "<group>"; };
+		514201592437B4B40078DB4F /* jsoncanvas.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = jsoncanvas.entitlements; sourceTree = "<group>"; };
 		5CB12ECEBDFF61F563D0DDF4 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
-		89990ADD0C6878A135BDC733 /* libPods-workspace-macOS.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-workspace-macOS.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		89990ADD0C6878A135BDC733 /* libPods-jsoncanvas-macOS.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-jsoncanvas-macOS.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
@@ -45,7 +45,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				7436F8FDE7A01C9CBA12693A /* libPods-workspace-macOS.a in Frameworks */,
+				7436F8FDE7A01C9CBA12693A /* libPods-jsoncanvas-macOS.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -56,12 +56,12 @@
 			isa = PBXGroup;
 			children = (
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
-				89990ADD0C6878A135BDC733 /* libPods-workspace-macOS.a */,
+				89990ADD0C6878A135BDC733 /* libPods-jsoncanvas-macOS.a */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
-		5142014A2437B4B30078DB4F /* workspace-macOS */ = {
+		5142014A2437B4B30078DB4F /* jsoncanvas-macOS */ = {
 			isa = PBXGroup;
 			children = (
 				5142014B2437B4B30078DB4F /* AppDelegate.h */,
@@ -70,9 +70,9 @@
 				514201532437B4B40078DB4F /* Main.storyboard */,
 				514201562437B4B40078DB4F /* Info.plist */,
 				514201572437B4B40078DB4F /* main.m */,
-				514201592437B4B40078DB4F /* workspace.entitlements */,
+				514201592437B4B40078DB4F /* jsoncanvas.entitlements */,
 			);
-			path = "workspace-macOS";
+			path = "jsoncanvas-macOS";
 			sourceTree = "<group>";
 		};
 		832341AE1AAA6A7D00B99B32 /* Libraries */ = {
@@ -85,7 +85,7 @@
 		83CBB9F61A601CBA00E9B192 = {
 			isa = PBXGroup;
 			children = (
-				5142014A2437B4B30078DB4F /* workspace-macOS */,
+				5142014A2437B4B30078DB4F /* jsoncanvas-macOS */,
 				832341AE1AAA6A7D00B99B32 /* Libraries */,
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
@@ -100,8 +100,8 @@
 		83CBBA001A601CBA00E9B192 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				13B07F961A680F5B00A75B9A /* workspace.app */,
-				514201492437B4B30078DB4F /* workspace.app */,
+				13B07F961A680F5B00A75B9A /* jsoncanvas.app */,
+				514201492437B4B30078DB4F /* jsoncanvas.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -109,8 +109,8 @@
 		FA57B5D5E4FF1C78D14A3679 /* Pods */ = {
 			isa = PBXGroup;
 			children = (
-				476437D8D7B7D7D95A7B08B2 /* Pods-workspace-macOS.debug.xcconfig */,
-				0FD7E1842A0A15596F891F3A /* Pods-workspace-macOS.release.xcconfig */,
+				476437D8D7B7D7D95A7B08B2 /* Pods-jsoncanvas-macOS.debug.xcconfig */,
+				0FD7E1842A0A15596F891F3A /* Pods-jsoncanvas-macOS.release.xcconfig */,
 			);
 			name = Pods;
 			path = Pods;
@@ -119,9 +119,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		13B07F861A680F5B00A75B9A /* workspace-iOS */ = {
+		13B07F861A680F5B00A75B9A /* jsoncanvas-iOS */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "workspace-iOS" */;
+			buildConfigurationList = 13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "jsoncanvas-iOS" */;
 			buildPhases = (
 				13B07F871A680F5B00A75B9A /* Sources */,
 				13B07F8C1A680F5B00A75B9A /* Frameworks */,
@@ -132,14 +132,14 @@
 			);
 			dependencies = (
 			);
-			name = "workspace-iOS";
-			productName = workspace;
-			productReference = 13B07F961A680F5B00A75B9A /* workspace.app */;
+			name = "jsoncanvas-iOS";
+			productName = jsoncanvas;
+			productReference = 13B07F961A680F5B00A75B9A /* jsoncanvas.app */;
 			productType = "com.apple.product-type.application";
 		};
-		514201482437B4B30078DB4F /* workspace-macOS */ = {
+		514201482437B4B30078DB4F /* jsoncanvas-macOS */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 5142015A2437B4B40078DB4F /* Build configuration list for PBXNativeTarget "workspace-macOS" */;
+			buildConfigurationList = 5142015A2437B4B40078DB4F /* Build configuration list for PBXNativeTarget "jsoncanvas-macOS" */;
 			buildPhases = (
 				1A938104A937498D81B3BD3B /* [CP] Check Pods Manifest.lock */,
 				514201452437B4B30078DB4F /* Sources */,
@@ -153,9 +153,9 @@
 			);
 			dependencies = (
 			);
-			name = "workspace-macOS";
-			productName = workspace;
-			productReference = 514201492437B4B30078DB4F /* workspace.app */;
+			name = "jsoncanvas-macOS";
+			productName = jsoncanvas;
+			productReference = 514201492437B4B30078DB4F /* jsoncanvas.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -175,7 +175,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 83CBB9FA1A601CBA00E9B192 /* Build configuration list for PBXProject "workspace" */;
+			buildConfigurationList = 83CBB9FA1A601CBA00E9B192 /* Build configuration list for PBXProject "jsoncanvas" */;
 			compatibilityVersion = "Xcode 3.2";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -188,8 +188,8 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				13B07F861A680F5B00A75B9A /* workspace-iOS */,
-				514201482437B4B30078DB4F /* workspace-macOS */,
+				13B07F861A680F5B00A75B9A /* jsoncanvas-iOS */,
+				514201482437B4B30078DB4F /* jsoncanvas-macOS */,
 			);
 		};
 /* End PBXProject section */
@@ -245,7 +245,7 @@
 			outputFileListPaths = (
 			);
 			outputPaths = (
-				"$(DERIVED_FILE_DIR)/Pods-workspace-macOS-checkManifestLockResult.txt",
+				"$(DERIVED_FILE_DIR)/Pods-jsoncanvas-macOS-checkManifestLockResult.txt",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -276,7 +276,7 @@
 			files = (
 			);
 			inputPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-workspace-macOS/Pods-workspace-macOS-resources.sh",
+				"${PODS_ROOT}/Target Support Files/Pods-jsoncanvas-macOS/Pods-jsoncanvas-macOS-resources.sh",
 				"${PODS_CONFIGURATION_BUILD_DIR}/RCT-Folly/RCT-Folly_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/React-Core/React-Core_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/React-cxxreact/React-cxxreact_privacy.bundle",
@@ -293,7 +293,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-workspace-macOS/Pods-workspace-macOS-resources.sh\"\n";
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-jsoncanvas-macOS/Pods-jsoncanvas-macOS-resources.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
 		CAFF7AB6563046BE1302AFED /* [CP] Embed Pods Frameworks */ = {
@@ -302,7 +302,7 @@
 			files = (
 			);
 			inputPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-workspace-macOS/Pods-workspace-macOS-frameworks.sh",
+				"${PODS_ROOT}/Target Support Files/Pods-jsoncanvas-macOS/Pods-jsoncanvas-macOS-frameworks.sh",
 				"${PODS_ROOT}/hermes-engine/destroot/Library/Frameworks/macosx/hermes.framework",
 			);
 			name = "[CP] Embed Pods Frameworks";
@@ -311,7 +311,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-workspace-macOS/Pods-workspace-macOS-frameworks.sh\"\n";
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-jsoncanvas-macOS/Pods-jsoncanvas-macOS-frameworks.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
 /* End PBXShellScriptBuildPhase section */
@@ -354,7 +354,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_BITCODE = NO;
-				INFOPLIST_FILE = "workspace-iOS/Info.plist";
+				INFOPLIST_FILE = "jsoncanvas-iOS/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				OTHER_LDFLAGS = (
 					"$(inherited)",
@@ -362,7 +362,7 @@
 					"-lc++",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "sh.workspace.jsoncanvas.macos-playground";
-				PRODUCT_NAME = workspace;
+				PRODUCT_NAME = jsoncanvas;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 				VERSIONING_SYSTEM = "apple-generic";
@@ -375,7 +375,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				INFOPLIST_FILE = "workspace-iOS/Info.plist";
+				INFOPLIST_FILE = "jsoncanvas-iOS/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				OTHER_LDFLAGS = (
 					"$(inherited)",
@@ -383,7 +383,7 @@
 					"-lc++",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "sh.workspace.jsoncanvas.macos-playground";
-				PRODUCT_NAME = workspace;
+				PRODUCT_NAME = jsoncanvas;
 				SWIFT_VERSION = 5.0;
 				VERSIONING_SYSTEM = "apple-generic";
 			};
@@ -391,13 +391,13 @@
 		};
 		5142015B2437B4B40078DB4F /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 476437D8D7B7D7D95A7B08B2 /* Pods-workspace-macOS.debug.xcconfig */;
+			baseConfigurationReference = 476437D8D7B7D7D95A7B08B2 /* Pods-jsoncanvas-macOS.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = NO;
-				INFOPLIST_FILE = "workspace-macos/Info.plist";
+				INFOPLIST_FILE = "jsoncanvas-macOS/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				OTHER_LDFLAGS = (
@@ -406,7 +406,7 @@
 					"-lc++",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "sh.workspace.jsoncanvas.macos-playground";
-				PRODUCT_NAME = workspace;
+				PRODUCT_NAME = jsoncanvas;
 				SDKROOT = macosx;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
@@ -415,12 +415,12 @@
 		};
 		5142015C2437B4B40078DB4F /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 0FD7E1842A0A15596F891F3A /* Pods-workspace-macOS.release.xcconfig */;
+			baseConfigurationReference = 0FD7E1842A0A15596F891F3A /* Pods-jsoncanvas-macOS.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				INFOPLIST_FILE = "workspace-macos/Info.plist";
+				INFOPLIST_FILE = "jsoncanvas-macOS/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				OTHER_LDFLAGS = (
@@ -429,7 +429,7 @@
 					"-lc++",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "sh.workspace.jsoncanvas.macos-playground";
-				PRODUCT_NAME = workspace;
+				PRODUCT_NAME = jsoncanvas;
 				SDKROOT = macosx;
 				SWIFT_VERSION = 5.0;
 			};
@@ -556,7 +556,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "workspace-iOS" */ = {
+		13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "jsoncanvas-iOS" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				13B07F941A680F5B00A75B9A /* Debug */,
@@ -565,7 +565,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		5142015A2437B4B40078DB4F /* Build configuration list for PBXNativeTarget "workspace-macOS" */ = {
+		5142015A2437B4B40078DB4F /* Build configuration list for PBXNativeTarget "jsoncanvas-macOS" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				5142015B2437B4B40078DB4F /* Debug */,
@@ -574,7 +574,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		83CBB9FA1A601CBA00E9B192 /* Build configuration list for PBXProject "workspace" */ = {
+		83CBB9FA1A601CBA00E9B192 /* Build configuration list for PBXProject "jsoncanvas" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				83CBBA201A601CBA00E9B192 /* Debug */,
