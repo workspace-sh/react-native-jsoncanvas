@@ -179,6 +179,14 @@ export function CanvasView({content, basePath, renderMarkdown, initialViewState,
   // The animation tick clears it back to false on next start.
   const animCancelled = useSharedValue(false);
 
+  // True for the duration of a fit / recenter / zoom-to-node tween. Read by
+  // SkiaCanvasLayer to reveal the Picture overlay during the animation
+  // (#35) — the live Skia tree under it stops being the rendering source
+  // of truth for those ~300ms, so per-frame node re-paint at the
+  // interpolated scale stops dominating the GPU. Mirror of `isPinching`'s
+  // role for the pinch gesture; OR'd together in SkiaCanvasLayer.
+  const isCameraAnimating = useSharedValue(false);
+
   // Tracks the user's last explicit camera intent so the desktop sidebar
   // toggle can preserve it (e.g. "I just clicked fit; toggling the sidebar
   // should keep me fit"). 'manual' covers pan, pinch, scroll-wheel, and
@@ -327,11 +335,22 @@ export function CanvasView({content, basePath, renderMarkdown, initialViewState,
       cancelAnimationFrame(animFrameRef.current);
       animFrameRef.current = null;
     }
-  }, []);
+    // Clear here too so any external teardown (unmount, or a hypothetical
+    // future caller) leaves no dangling animation state. animateCamera
+    // re-sets to true immediately after calling this, so the in-flight
+    // re-click flow is unaffected.
+    isCameraAnimating.value = false;
+  }, [isCameraAnimating]);
 
   const animateCamera = useCallback((toTx: number, toTy: number, toScale: number, durationMs: number = CAMERA_ANIM_DURATION_MS) => {
     cancelCameraAnim();
     animCancelled.value = false;
+    // Reveal the Picture overlay for the duration of this tween (#35).
+    // Cleared in every exit path below: cancel (gesture takeover) AND
+    // natural completion (t >= 1). Mid-animation re-click also clears
+    // briefly through cancelCameraAnim → re-set here, but since both
+    // transitions happen in the same frame Skia sees a continuous true.
+    isCameraAnimating.value = true;
     // Capture current rendered values as start so a re-click mid-animation
     // eases from wherever the camera actually is, not from the previous start.
     const startTx = translateX.value;
@@ -344,6 +363,7 @@ export function CanvasView({content, basePath, renderMarkdown, initialViewState,
       // animation so the gesture takes over from the visible position.
       if (animCancelled.value) {
         animFrameRef.current = null;
+        isCameraAnimating.value = false;
         return;
       }
       const elapsed = Date.now() - startTime;
@@ -357,11 +377,12 @@ export function CanvasView({content, basePath, renderMarkdown, initialViewState,
         animFrameRef.current = requestAnimationFrame(tick);
       } else {
         animFrameRef.current = null;
+        isCameraAnimating.value = false;
         saveViewState();
       }
     };
     animFrameRef.current = requestAnimationFrame(tick);
-  }, [translateX, translateY, scale, animCancelled, cancelCameraAnim, saveViewState]);
+  }, [translateX, translateY, scale, animCancelled, isCameraAnimating, cancelCameraAnim, saveViewState]);
 
   useEffect(() => () => cancelCameraAnim(), [cancelCameraAnim]);
 
@@ -753,6 +774,7 @@ export function CanvasView({content, basePath, renderMarkdown, initialViewState,
             viewportHeight={viewportHeight}
             basePath={basePath}
             isPinching={isPinching}
+            isCameraAnimating={isCameraAnimating}
           />
           {minimap !== 'hidden' && allNodes.length > 0 && (
             <CanvasMinimap
