@@ -465,17 +465,13 @@ export function CanvasView({content, basePath, renderMarkdown, initialViewState,
   // a closure dep, to preserve callback identity — see the matching
   // discussion above `fitToViewport`.
   //
-  // `focalX` / `focalY` (optional, screen coords) opt into Safari-Smart-Zoom
-  // semantics (#36 item 3): the world point currently under the tap stays
-  // under the same screen pixel after the tween. Without them, the node
-  // centres in the visible pane (legacy behaviour) — kept as the fallback
-  // for non-tap callers (e.g. programmatic zoom-to-node from a Find UI).
-  const zoomToNode = useCallback((
-    node: CanvasNode,
-    leftInset: number = 0,
-    focalX?: number,
-    focalY?: number,
-  ) => {
+  // Behaviour note: the node *centres* in the visible pane, not anchored to
+  // the tap. Tried Safari-style focal anchoring (#36 item 3) in an earlier
+  // revision of this branch — for a node canvas the user-intent reading is
+  // "I picked this thing, put it in the middle of the screen", not "anchor
+  // it under my finger". Safari semantics fit web-page text; canvas
+  // semantics expect centering.
+  const zoomToNode = useCallback((node: CanvasNode, leftInset: number = 0) => {
     const sw = viewportWidth;
     const sh = viewportHeight;
     const visibleW = Math.max(1, sw - leftInset);
@@ -486,55 +482,19 @@ export function CanvasView({content, basePath, renderMarkdown, initialViewState,
       MIN_SCALE,
       Math.min(NODE_FIT_SOFT_MAX_SCALE, Math.min(fitW / node.width, fitH / node.height)),
     );
-
-    let tx: number;
-    let ty: number;
-    if (focalX != null && focalY != null) {
-      // Focal-preserving end frame: solve for tx/ty such that the world
-      // point currently under (focalX, focalY) lands under the same screen
-      // point at the new scale `s`. Identical maths to pinch's focal-point
-      // anchoring, applied once at the end state — the rAF interpolator
-      // handles the in-between frames.
-      const wx = (focalX - translateX.value) / scale.value;
-      const wy = (focalY - translateY.value) / scale.value;
-      tx = focalX - wx * s;
-      ty = focalY - wy * s;
-    } else {
-      tx = centreX - (node.x + node.width / 2) * s;
-      ty = sh / 2 - (node.y + node.height / 2) * s;
-    }
+    const tx = centreX - (node.x + node.width / 2) * s;
+    const ty = sh / 2 - (node.y + node.height / 2) * s;
     animateCamera(tx, ty, s);
-  }, [viewportWidth, viewportHeight, animateCamera, translateX, translateY, scale]);
-
-  // Zoom to an arbitrary scale anchored at a screen-space focal point.
-  // Used for the "empty-space double-tap → 1× at tap" Safari behaviour
-  // (#36 item 10) — previously fell through to fit-all, which felt like a
-  // teleport when the user just wanted a small de-zoom. The same focal-
-  // preserving maths as `zoomToNode`, factored so handleDoubleTap doesn't
-  // need to know about it.
-  const zoomAtFocalPoint = useCallback((focalX: number, focalY: number, toScale: number) => {
-    const s = Math.max(MIN_SCALE, Math.min(MAX_SCALE, toScale));
-    const wx = (focalX - translateX.value) / scale.value;
-    const wy = (focalY - translateY.value) / scale.value;
-    const tx = focalX - wx * s;
-    const ty = focalY - wy * s;
-    animateCamera(tx, ty, s);
-  }, [animateCamera, translateX, translateY, scale]);
+  }, [viewportWidth, viewportHeight, animateCamera]);
 
   // Toggle state: which node we last zoomed into. Re-tapping the same node
   // returns to fit-all; tapping a different node zooms there.
   const lastZoomedNodeId = useRef<string | null>(null);
 
-  // Takes screen-space coords now (not world) — the callers (smartMagnify
-  // bridge + iOS RNGH tap) hand off the raw event location and this function
-  // owns the world-coord conversion for hit-testing. Screen coords are also
-  // needed downstream for focal-point preservation (#36 item 3).
-  const handleDoubleTap = useCallback((tapX: number, tapY: number) => {
+  const handleDoubleTap = useCallback((wx: number, wy: number) => {
     // Don't fight an in-flight pinch
     if (isPinching.value) return;
 
-    const wx = (tapX - translateX.value) / scale.value;
-    const wy = (tapY - translateY.value) / scale.value;
     const hits = canvasState?.hitTest(wx, wy) ?? [];
     // Smallest-area-wins: prefer the inner node when stacked inside a group.
     // Known weakness documented in #128 (zoomed-out group fills viewport ⇒
@@ -549,9 +509,7 @@ export function CanvasView({content, basePath, renderMarkdown, initialViewState,
     // recompose this callback.
     const inset = leftInsetSV?.value ?? 0;
 
-    // Re-tap on the same node toggles back to fit-all — explicit "I'm done
-    // looking at this; show me everything again". Predates Safari parity.
-    if (hit && lastZoomedNodeId.current === hit.id) {
+    if (!hit || lastZoomedNodeId.current === hit.id) {
       fitToViewport(inset);
       lastZoomedNodeId.current = null;
       // Double-tap is a manual / focal interaction — sidebar toggle should
@@ -561,22 +519,10 @@ export function CanvasView({content, basePath, renderMarkdown, initialViewState,
       return;
     }
 
-    // Empty-space tap (#36 item 10) — Safari Smart Zoom semantics: scale to
-    // 1× anchored at the tap point. Previously fell through to fit-all,
-    // which felt like a teleport when the user just wanted a small de-zoom.
-    if (!hit) {
-      zoomAtFocalPoint(tapX, tapY, 1.0);
-      lastZoomedNodeId.current = null;
-      lastActionRef.current = 'manual';
-      return;
-    }
-
-    // Node-targeted tap — focal-preserving zoom-in. The tap location stays
-    // under the same screen pixel through the tween (#36 item 3).
-    zoomToNode(hit, inset, tapX, tapY);
+    zoomToNode(hit, inset);
     lastZoomedNodeId.current = hit.id;
     lastActionRef.current = 'manual';
-  }, [canvasState, fitToViewport, zoomToNode, zoomAtFocalPoint, isPinching, leftInsetSV, translateX, translateY, scale]);
+  }, [canvasState, fitToViewport, zoomToNode, isPinching, leftInsetSV]);
 
   // Recenter content at current zoom level, against the visible canvas pane.
   // See `fitToViewport` for the leftInset rationale.
@@ -652,13 +598,13 @@ export function CanvasView({content, basePath, renderMarkdown, initialViewState,
     const sub = jsonCanvasGestureEvents.addListener(
       'onSmartMagnify',
       (event: SmartMagnifyEvent) => {
-        // Screen coords — handleDoubleTap owns the world-coord conversion
-        // and also uses screen coords for focal-point preservation (#36).
-        handleDoubleTap(event.x, event.y);
+        const wx = (event.x - translateX.value) / scale.value;
+        const wy = (event.y - translateY.value) / scale.value;
+        handleDoubleTap(wx, wy);
       },
     );
     return () => sub.remove();
-  }, [handleDoubleTap]);
+  }, [translateX, translateY, scale, handleDoubleTap]);
 
   // Click-and-drag to pan
   const panGesture = useMemo(
@@ -814,12 +760,11 @@ export function CanvasView({content, basePath, renderMarkdown, initialViewState,
       // trigger pan logic, but the click itself is a no-op. iOS keeps
       // single-finger double-tap zoom (touchscreen convention).
       if (Platform.OS === 'macos') return;
-      // Screen coords (event.x / event.y are touch-relative to the
-      // GestureDetector). handleDoubleTap handles world conversion and
-      // also uses these for focal-point preservation (#36).
-      scheduleOnRN(handleDoubleTap, event.x, event.y);
+      const wx = (event.x - translateX.value) / scale.value;
+      const wy = (event.y - translateY.value) / scale.value;
+      scheduleOnRN(handleDoubleTap, wx, wy);
     });
-  }, [handleDoubleTap, doubleTapMaxDelayMs]);
+  }, [translateX, translateY, scale, handleDoubleTap, doubleTapMaxDelayMs]);
 
   const gesture = useMemo(
     () => Gesture.Simultaneous(pinchGesture, Gesture.Race(tapGesture, panGesture)),
