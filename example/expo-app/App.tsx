@@ -1,5 +1,5 @@
 import {useRef, useState} from 'react';
-import {Pressable, StyleSheet, Text, View} from 'react-native';
+import {Pressable, StyleSheet, Text, useColorScheme, View} from 'react-native';
 import {GestureHandlerRootView} from 'react-native-gesture-handler';
 import {StatusBar} from 'expo-status-bar';
 import {CanvasView} from '@workspace.sh/react-native-jsoncanvas';
@@ -14,9 +14,15 @@ type Controls = {
 export default function App() {
   const controlsRef = useRef<Controls | null>(null);
   const [lastAction, setLastAction] = useState<string>('—');
+  // Renderer text/nodes already react to useColorScheme internally; the
+  // wrapper has to match so canvas-empty background doesn't fight node
+  // colours (e.g. dark nodes on a white background in dark mode).
+  const isDark = useColorScheme() === 'dark';
 
   return (
-    <GestureHandlerRootView style={styles.root}>
+    <GestureHandlerRootView
+      style={[styles.root, {backgroundColor: isDark ? '#000' : '#fff'}]}
+    >
       <CanvasView
         content={SAMPLE_CANVAS}
         onReady={c => {
@@ -52,7 +58,7 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  root: {flex: 1, backgroundColor: '#fff'},
+  root: {flex: 1},
   controls: {
     position: 'absolute',
     bottom: 32,

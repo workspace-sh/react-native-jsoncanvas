@@ -1,0 +1,15 @@
+# CocoaPods
+Pods/
+
+# Xcode build outputs
+build/
+DerivedData/
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcworkspace/xcuserdata/
+
+# Machine-local NODE_BINARY override
+.xcode.env.local
+
+# Swift Package Manager cache from pod install
+.spm.pods/

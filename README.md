@@ -78,24 +78,72 @@ Example harnesses live under `example/` and follow the org's standard layout
 Each example imports the library through Metro's `extraNodeModules` mapping
 back to repo root. Edits to `src/` hot-reload via Metro's watcher.
 
-All commands run from the repo root:
+All commands run from the repo root. Scripts follow
+`<form-factor>:<platform>:<mode>` — Metro and dep-install are
+platform-agnostic (Metro is just a JS bundler), so they collapse to
+the form-factor level; build/run is platform-specific.
 
 ```sh
+# Shared across iOS and Android (one expo-app, one Metro bundle)
+npm run mobile:install                  # npm install for example/expo-app
+npm run mobile:start                    # Metro only (after a build exists)
+npm run mobile:clear                    # watchman + Metro --reset-cache
+
 # iOS
-npm run ios:run              # First run: full Xcode build + sim launch
-npm run ios:start            # Metro only (build already exists)
-npm run ios:clear            # watchman watch-del-all + reset Metro cache
-npm run ios:dev              # concurrently: clear + run
-npm run ios:run:device       # tethered iOS device
-npm run ios:prebuild         # regenerate ios/ from app.json (CNG)
-npm run ios:clean            # delete ios/ — pair with :prebuild
+npm run mobile:ios:dev                  # concurrently: mobile:clear + mobile:ios:run
+npm run mobile:ios:run                  # Xcode build + sim launch
+npm run mobile:ios:run:device           # tethered iOS device
+npm run mobile:ios:run:device:release   # release on tethered device
+npm run mobile:ios:prebuild             # regenerate ios/ from app.json (CNG)
+npm run mobile:ios:clean                # delete ios/ — pair with :prebuild
 
 # Android (same surface)
-npm run android:run
-npm run android:start
-npm run android:dev
-# … etc.
+npm run mobile:android:dev
+npm run mobile:android:run
+npm run mobile:android:run:device
+npm run mobile:android:prebuild
+npm run mobile:android:clean
 ```
 
-(macOS scripts arrive with #21.)
+### Playground app (macOS)
+
+A bare-RN + `react-native-macos` harness lives at `example/macos-app/`.
+Sibling to the Expo playground; same `CanvasView` + Fit / Recenter shape
+and same `hesprs-demo` fixture, but in a vanilla macOS window rather
+than Expo.
+
+The native `macos/` scaffold ships with the repo (lifted from the
+known-good [`enriched-markdown-macos-harness`](https://github.com/workspace-sh/enriched-markdown-macos-harness)
+template — see `example/macos-app/README.md` for the why). No
+`react-native-macos-init` step required.
+
+From the repo root:
+
+```sh
+# Shared across all desktop platforms (only macos today)
+npm run desktop:install         # npm install for example/macos-app (--legacy-peer-deps)
+npm run desktop:start           # Metro only on port 8083
+npm run desktop:clear           # watchman + Metro --reset-cache
+
+# macOS
+npm run desktop:macos:dev       # concurrently: desktop:clear + desktop:macos:run
+npm run desktop:macos:run       # xcodebuild + launch (Metro must be running)
+npm run desktop:macos:pods      # pod install inside macos/
+npm run desktop:macos:clean     # rm macos/build + macos/Pods (cold rebuild)
+```
+
+The full first-time setup, in order:
+
+```sh
+npm run desktop:install         # postinstall: symlink react-native into example/macos-app
+npm run desktop:macos:pods      # generate Pods/ from the Podfile
+npm run desktop:macos:dev       # Metro + xcodebuild + launch
+```
+
+Port `8083` matches Workspace's `desktop:*` convention, leaving `8082`
+free for the Expo playground when both are running. React-version
+isolation is handled in `example/macos-app/metro.config.js` —
+`react-native-macos@0.81` pins `react@19.1.4` exact, the Expo playground
+uses `react@19.2.0`, and Metro forces this app's local copy to win every
+resolution.
 
