@@ -45,6 +45,69 @@ export function MyCanvasScreen({canvasJson}: {canvasJson: string}) {
 
 Call `controls.current?.fitToViewport()` or `controls.current?.recenter()` from any button to drive the camera.
 
+## Platforms & gestures
+
+The same `<CanvasView />` works across iOS, Android, and macOS. **You don't
+need to wire up any platform-specific gesture handling** — the library
+ships every gesture it supports as a default.
+
+| Gesture                       | iOS | Android | macOS |
+|-------------------------------|-----|---------|-------|
+| Pinch to zoom                 | ✓   | ✓       | ✓ (trackpad pinch) |
+| Pan / drag                    | ✓   | ✓       | ✓ (click-and-drag) |
+| Two-finger trackpad pan       | —   | —       | ✓ |
+| Double-tap to zoom-to-node    | ✓   | ✓       | ✓ (trackpad two-finger double-tap, a.k.a. Smart Zoom) |
+| Inertial fling                | ✓   | ✓       | — (macOS pan is direct, no inertia) |
+
+### iOS / Android (Expo or bare RN)
+
+Install the library and its peer deps; that's it. All gestures run
+through `react-native-gesture-handler` + `react-native-reanimated`. No
+native module setup, no Xcode / Android Studio edits.
+
+```sh
+npm install @workspace.sh/react-native-jsoncanvas \
+  @shopify/react-native-skia \
+  react-native-gesture-handler \
+  react-native-reanimated \
+  react-native-worklets
+```
+
+Expo: works in any SDK that supports the peer-dep range. Use
+`expo install` if you prefer Expo's version-pinning. No native config
+needed in `app.json`.
+
+### macOS (`react-native-macos`)
+
+RNGH on macOS can't see trackpad multi-finger gestures
+([RNGH-macos limitation](https://github.com/software-mansion/react-native-gesture-handler)),
+so the library ships a small Swift `RCTEventEmitter` module
+(`WorkspaceJsonCanvasGesture`) that hooks the raw AppKit event stream
+(`NSEvent.smartMagnify`, `NSEvent.scrollWheel`) and forwards events to
+the renderer. **It's autolinked via `react-native-jsoncanvas.podspec` —
+the only thing you do as a consumer is run `pod install`.**
+
+```sh
+cd macos && pod install
+```
+
+After that, the canvas gets two-finger pan and Smart Zoom for free.
+There is no JS-side opt-in, no `<GestureHandlerRootView>` requirement
+beyond what RNGH already needs, and no platform flag to flip.
+
+#### Escape hatch: bring-your-own scroll bridge
+
+If your app already ships its own scroll-wheel native module (Workspace
+does — its bridge is scoped to a specific `NSView` so the sidebar
+doesn't double-trigger), `CanvasView` will prefer it. The convention is:
+
+- Register a `RCTEventEmitter` named `ScrollWheelBridge`.
+- Emit `onScrollWheel` events with `{ deltaX: number, deltaY: number }`.
+
+When present, the library's own scroll-wheel monitor stays installed but
+the renderer listens to your bridge instead. You don't need to disable
+anything; it's a runtime preference.
+
 ## What's inside
 
 The library exposes two layers:

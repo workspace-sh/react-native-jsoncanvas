@@ -34,7 +34,7 @@
     "desktop:install": "cd example/macos-app && npm install --legacy-peer-deps",
     "desktop:start": "cd example/macos-app && npx react-native start --port 8083",
     "desktop:clear": "cd example/macos-app && watchman watch-del-all && npx react-native start --port 8083 --reset-cache",
-    "desktop:macos:pods": "cd example/macos-app/macos && pod install",
+    "desktop:macos:pods": "cd example/macos-app/macos && LANG=en_US.UTF-8 pod install",
     "desktop:macos:clean": "rm -rf example/macos-app/macos/build example/macos-app/macos/Pods",
     "desktop:macos:run": "cd example/macos-app && npx react-native run-macos --port 8083",
     "desktop:macos:dev": "concurrently \"npm run desktop:clear\" \"npm run desktop:macos:run\""

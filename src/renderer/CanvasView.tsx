@@ -123,10 +123,6 @@ const CAMERA_ANIM_DURATION_MS = 300;
 // setting. On iOS the library default is correct — the OS pre-filters input
 // for Touch Accommodations before events reach the recogniser.
 
-// macOS click-drag inverts Y (drag down → pan up, like grabbing the background).
-// Mobile touch uses direct manipulation (drag down → content moves down).
-const PAN_Y_SIGN = Platform.OS === 'macos' ? -1 : 1;
-
 /**
  * Main infinite canvas component.
  *
@@ -507,10 +503,16 @@ export function CanvasView({content, basePath, renderMarkdown, initialViewState,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Two-finger trackpad scroll to pan
+  // Two-finger trackpad scroll to pan (macOS).
+  //
+  // Prefer a consumer-supplied `ScrollWheelBridge` (Workspace ships one
+  // scoped to its canvas NSView) when present; otherwise fall back to the
+  // library's own gesture bridge which monitors `NSEvent.scrollWheel`
+  // window-globally. See `NativeScrollWheelView.tsx`.
   useEffect(() => {
-    if (!scrollWheelEvents) return;
-    const sub = scrollWheelEvents.addListener(
+    const source = scrollWheelEvents ?? jsonCanvasGestureEvents;
+    if (!source) return;
+    const sub = source.addListener(
       'onScrollWheel',
       (event: ScrollWheelEvent) => {
         translateX.value += event.deltaX;
@@ -567,7 +569,7 @@ export function CanvasView({content, basePath, renderMarkdown, initialViewState,
         .onUpdate(event => {
           'worklet';
           translateX.value = prevTranslateX.value + event.translationX;
-          translateY.value = prevTranslateY.value + PAN_Y_SIGN * event.translationY;
+          translateY.value = prevTranslateY.value + event.translationY;
         })
         .onEnd(event => {
           'worklet';
@@ -579,7 +581,7 @@ export function CanvasView({content, basePath, renderMarkdown, initialViewState,
               deceleration,
             });
             translateY.value = withDecay(
-              { velocity: PAN_Y_SIGN * event.velocityY, deceleration },
+              { velocity: event.velocityY, deceleration },
               (finished) => {
                 'worklet';
                 if (finished) {

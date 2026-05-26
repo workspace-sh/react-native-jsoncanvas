@@ -26,11 +26,12 @@ export interface SmartMagnifyEvent {
   y: number;
 }
 
-// Consumer-provided scroll-wheel bridge. Optional. Apps that need
-// trackpad-pan support on macOS provide a `ScrollWheelBridge` native module
-// emitting `onScrollWheel` events. The library doesn't ship one — pan via
-// scroll-wheel is an app-level concern (it interacts with sidebar offsets,
-// scroll inertia, etc., which differ per consumer).
+// Consumer-provided scroll-wheel bridge. Optional escape hatch for apps
+// that already ship their own `ScrollWheelBridge` native module (Workspace
+// does — it scopes scroll to a specific NSView rather than window-global).
+// CanvasView prefers it over the library-shipped bridge below when present.
+// Plain react-native-macos apps don't need to provide one — the library's
+// own bridge covers the trackpad-pan / mouse-wheel case.
 const ScrollWheelBridge =
   Platform.OS === 'macos' ? NativeModules.ScrollWheelBridge : null;
 
@@ -46,8 +47,14 @@ export const scrollWheelEvents = ScrollWheelBridge
   ? new NativeEventEmitter(ScrollWheelBridge)
   : null;
 
-// Library-shipped gesture bridge. Currently emits `onSmartMagnify` only;
-// autolinked into any macOS consumer via react-native-jsoncanvas.podspec.
+// Library-shipped gesture bridge. Emits two events:
+//
+//   - `onSmartMagnify` — trackpad two-finger double-tap (Safari Smart Zoom),
+//     consumed by the canvas to drive zoom-to-node.
+//   - `onScrollWheel` — trackpad two-finger pan + mouse wheel, consumed by
+//     the canvas to translate the camera.
+//
+// Autolinked into any macOS consumer via react-native-jsoncanvas.podspec.
 // On non-macOS platforms the native module isn't present and this stays
 // null — JS-side listeners are guarded against null.
 const JsonCanvasGestureModule =
