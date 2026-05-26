@@ -1,16 +1,13 @@
-// React Native autolinking config.
+// React Native autolinking config — intentionally minimal.
 //
-// The library currently ships native code for macOS only (a smartMagnify
-// event bridge — see ios/WorkspaceJsonCanvasGesture.swift). We declare iOS
-// / Android as having no platform-specific native code so the autolinker
-// doesn't try to integrate anything there. The macOS Pod is picked up via
-// react-native-jsoncanvas.podspec at the repo root.
+// An earlier version declared
+//   dependency: { platforms: { ios: null, android: null } }
+// to signal "we have no iOS/Android native code". The macOS autolinker
+// reads the same config and interprets the `ios: null` exclusion as
+// "exclude from all platforms", silently dropping us from `pod install`
+// on macOS too. Empty default is the safe shape — `react-native-macos`'s
+// autolinker finds our podspec at the repo root and includes it for
+// macOS targets only (the podspec itself declares
+// `s.platforms = { :osx => '11.0' }`, so CocoaPods skips it on iOS).
 
-module.exports = {
-  dependency: {
-    platforms: {
-      ios: null,
-      android: null,
-    },
-  },
-};
+module.exports = {};

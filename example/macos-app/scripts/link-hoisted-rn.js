@@ -40,6 +40,13 @@ const PACKAGES = [
   // Required by the workspace-macOS target's "Bundle React Native code and
   // images" build phase (react-native-xcode.sh)
   'react-native-macos',
+  // Required for `npx react-native config` (the autolinker) to discover
+  // the library's own native module (ios/WorkspaceJsonCanvasGesture.swift).
+  // The package.json file: dep symlinks to the monorepo root, but npm
+  // hoists that symlink to the repo's own node_modules — the autolinker
+  // doesn't walk up, so the symlink has to exist locally for it to be
+  // included in pod install.
+  '@workspace.sh/react-native-jsoncanvas',
 ];
 
 const appDir = path.resolve(__dirname, '..');
