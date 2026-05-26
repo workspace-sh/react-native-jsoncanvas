@@ -1749,6 +1749,8 @@ PODS:
     - React-RCTFBReactNativeSpec
     - ReactCommon/turbomodule/core
     - SocketRocket
+  - react-native-jsoncanvas (0.0.1):
+    - React-Core
   - react-native-skia (2.6.2):
     - boost
     - DoubleConversion
@@ -2538,6 +2540,7 @@ DEPENDENCIES:
   - React-logger (from `../../../node_modules/react-native-macos/ReactCommon/logger`)
   - React-Mapbuffer (from `../../../node_modules/react-native-macos/ReactCommon`)
   - React-microtasksnativemodule (from `../../../node_modules/react-native-macos/ReactCommon/react/nativemodule/microtasks`)
+  - "react-native-jsoncanvas (from `../node_modules/@workspace.sh/react-native-jsoncanvas`)"
   - "react-native-skia (from `../../../node_modules/@shopify/react-native-skia`)"
   - React-NativeModulesApple (from `../../../node_modules/react-native-macos/ReactCommon/react/nativemodule/core/platform/ios`)
   - React-oscompat (from `../../../node_modules/react-native-macos/ReactCommon/oscompat`)
@@ -2661,6 +2664,8 @@ EXTERNAL SOURCES:
     :path: "../../../node_modules/react-native-macos/ReactCommon"
   React-microtasksnativemodule:
     :path: "../../../node_modules/react-native-macos/ReactCommon/react/nativemodule/microtasks"
+  react-native-jsoncanvas:
+    :path: "../node_modules/@workspace.sh/react-native-jsoncanvas"
   react-native-skia:
     :path: "../../../node_modules/@shopify/react-native-skia"
   React-NativeModulesApple:
@@ -2773,6 +2778,7 @@ SPEC CHECKSUMS:
   React-logger: ebf77e4ed4180ada8395150e28b3e0afbce85f7f
   React-Mapbuffer: c44902c0cd34295f9d3d966e6700065d020b959a
   React-microtasksnativemodule: 9d242fc7e563da3fe7ad3709b6f95fa7513e67c2
+  react-native-jsoncanvas: e9198914f3b9a61a53db2d82523f29148084fc21
   react-native-skia: 6354d59a2751ef30f1025deb1bf355dd3856963e
   React-NativeModulesApple: 69b79d4f3e84383515f2cca1139f36221361fd22
   React-oscompat: b359d251f6ea20fa91e5e0f99fd7b563f50a8af3
@@ -2810,6 +2816,6 @@ SPEC CHECKSUMS:
   SocketRocket: d4aabe649be1e368d1318fdf28a022d714d65748
   Yoga: 8a0df683a71bee13fe0b9d8b653d1a062ff65b2e
 
-PODFILE CHECKSUM: 590890c4e9686e88f67668682c58a681d7728efb
+PODFILE CHECKSUM: a068f641f6a4a7847036f02560947fbd67a2821f
 
 COCOAPODS: 1.16.2

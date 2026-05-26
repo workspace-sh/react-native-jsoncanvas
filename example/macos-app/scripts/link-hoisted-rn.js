@@ -6,7 +6,7 @@
 // Why
 //
 // Bare-RN's Pod and target build scripts (hermes-engine's "Replace Hermes
-// for the right configuration, if needed", the workspace-macOS target's
+// for the right configuration, if needed", the jsoncanvas-macOS target's
 // "Bundle React Native code and images", etc.) hardcode relative paths
 // from the macos/ dir into ../node_modules/<pkg>. Under npm workspaces,
 // those packages frequently hoist out of the app's local node_modules and
@@ -37,7 +37,7 @@ const path = require('node:path');
 const PACKAGES = [
   // Required by hermes-engine's "Replace Hermes" Pod script
   'react-native',
-  // Required by the workspace-macOS target's "Bundle React Native code and
+  // Required by the jsoncanvas-macOS target's "Bundle React Native code and
   // images" build phase (react-native-xcode.sh)
   'react-native-macos',
   // Required for `npx react-native config` (the autolinker) to discover
