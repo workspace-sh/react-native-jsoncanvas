@@ -1,7 +1,16 @@
-import {useRef, useState} from 'react';
+// App.tsx — minimal RN-macOS harness for smoke-testing @workspace.sh/react-native-jsoncanvas.
+//
+// Mirrors example/expo-app/App.tsx's shape so the two harnesses demonstrate
+// the same surface: Fit / Recenter buttons that drive onReady controls, a
+// status pill showing getLastAction(). Only difference is platform plumbing —
+// bare RN + react-native-macos here, Expo CNG there.
+//
+// Per #21: this is a MINIMAL vanilla macOS shell. No NSSplitView, no custom
+// title bar, no native modules. The point is to prove the renderer mounts
+// and behaves on macOS, not to recreate Workspace's apps/desktop.
+import React, {useRef, useState} from 'react';
 import {Pressable, StyleSheet, Text, useColorScheme, View} from 'react-native';
 import {GestureHandlerRootView} from 'react-native-gesture-handler';
-import {StatusBar} from 'expo-status-bar';
 import {CanvasView} from '@workspace.sh/react-native-jsoncanvas';
 import {SAMPLE_CANVAS} from './fixtures';
 
@@ -15,8 +24,8 @@ export default function App() {
   const controlsRef = useRef<Controls | null>(null);
   const [lastAction, setLastAction] = useState<string>('—');
   // Renderer text/nodes already react to useColorScheme internally; the
-  // wrapper has to match so canvas-empty background doesn't fight node
-  // colours (e.g. dark nodes on a white background in dark mode).
+  // wrapper has to match so the canvas-empty background doesn't fight the
+  // node colours (e.g. dark nodes on a white background in dark mode).
   const isDark = useColorScheme() === 'dark';
 
   return (
@@ -52,7 +61,6 @@ export default function App() {
           <Text style={styles.statusText}>last: {lastAction}</Text>
         </View>
       </View>
-      <StatusBar style="auto" />
     </GestureHandlerRootView>
   );
 }
