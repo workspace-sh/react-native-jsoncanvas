@@ -14,12 +14,15 @@ export interface ScrollWheelEvent {
  * react-native-jsoncanvas.podspec) that hooks `NSEvent.smartMagnify` and
  * forwards the event here.
  *
- * LIMITATION (v1): coordinates are window-relative, not canvas-view-relative.
- * For a full-window canvas (e.g. the playground harness) they match. For an
- * app with chrome (sidebar, title bar inset), the consumer needs to
- * subtract their own offsets before calling into world-coord conversion.
- * A future view-component variant of the native module will provide
- * view-local coords per-instance.
+ * Note: coordinates are window-relative, NOT canvas-view-relative. The
+ * library's `CanvasView` translates them to view-local coords internally
+ * via `View.measureInWindow` so consumers with chrome (sidebar, title-bar
+ * inset) get correct hit-testing without any extra wiring. Taps that land
+ * outside the canvas pane (e.g. on a sidebar) are ignored by CanvasView.
+ *
+ * Direct consumers of `jsonCanvasGestureEvents` (subscribing without going
+ * through CanvasView) still get raw window-relative coords here and own
+ * any offset bookkeeping themselves.
  */
 export interface SmartMagnifyEvent {
   x: number;

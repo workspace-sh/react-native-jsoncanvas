@@ -150,11 +150,27 @@ export function CanvasView({content, basePath, renderMarkdown, initialViewState,
   const [layoutSize, setLayoutSize] = useState<{width: number; height: number} | null>(null);
   const viewportWidth = layoutSize?.width ?? windowWidth;
   const viewportHeight = layoutSize?.height ?? windowHeight;
+  // Window-relative origin of the canvas pane. Captured on every layout via
+  // `View.measureInWindow`. Used by the macOS `onSmartMagnify` listener
+  // below — `NSEvent.smartMagnify` deliveries are window-global, but the
+  // hit-test math operates in canvas-local space, so we subtract this
+  // origin before world-coord conversion. For a full-window canvas the
+  // origin is (0, 0); for a host with a sidebar or other left/top chrome
+  // the canvas pane sits past it, and without this subtraction taps land
+  // off-by-chrome-width and miss every node.
+  const canvasViewRef = useRef<View>(null);
+  const canvasOriginRef = useRef({x: 0, y: 0, width: 0, height: 0});
   const onLayout = useCallback((event: LayoutChangeEvent) => {
     const {width, height} = event.nativeEvent.layout;
     setLayoutSize(prev =>
       prev && prev.width === width && prev.height === height ? prev : {width, height},
     );
+    // `measureInWindow` resolves async on the next layout pass. Storing
+    // into a ref (not state) so it doesn't trigger a re-render — only the
+    // smartMagnify listener reads it, at event-fire time.
+    canvasViewRef.current?.measureInWindow((x, y, w, h) => {
+      canvasOriginRef.current = {x, y, width: w, height: h};
+    });
   }, []);
 
   const colorScheme = resolveScheme(useColorScheme());
@@ -566,14 +582,30 @@ export function CanvasView({content, basePath, renderMarkdown, initialViewState,
   // library's WorkspaceJsonCanvasGesture native module (ios/) which
   // hooks NSEvent.smartMagnify and emits `onSmartMagnify` here.
   //
+  // `NSEvent.smartMagnify` is a window-global event monitor, so
+  // `event.x` / `event.y` are window-relative — we subtract the canvas
+  // view's measured window-origin (captured on layout) to get
+  // canvas-local coords before world-coord conversion. If the tap lands
+  // outside the canvas pane (e.g. on a sidebar / chrome), we ignore it.
+  //
   // iOS keeps the RNGH single-finger double-tap below.
   useEffect(() => {
     if (!jsonCanvasGestureEvents) return;
     const sub = jsonCanvasGestureEvents.addListener(
       'onSmartMagnify',
       (event: SmartMagnifyEvent) => {
-        const wx = (event.x - translateX.value) / scale.value;
-        const wy = (event.y - translateY.value) / scale.value;
+        const origin = canvasOriginRef.current;
+        const localX = event.x - origin.x;
+        const localY = event.y - origin.y;
+        if (
+          localX < 0 || localY < 0 ||
+          localX > origin.width || localY > origin.height
+        ) {
+          // Tap was outside the canvas pane (on chrome, sidebar, etc.).
+          return;
+        }
+        const wx = (localX - translateX.value) / scale.value;
+        const wy = (localY - translateY.value) / scale.value;
         handleDoubleTap(wx, wy);
       },
     );
@@ -780,7 +812,7 @@ export function CanvasView({content, basePath, renderMarkdown, initialViewState,
   return (
     <CanvasProvider value={contextValue}>
       <GestureDetector gesture={gesture}>
-        <View style={{flex: 1, overflow: 'hidden'}} onLayout={onLayout} collapsable={false}>
+        <View ref={canvasViewRef} style={{flex: 1, overflow: 'hidden'}} onLayout={onLayout} collapsable={false}>
           <SkiaCanvasLayer
             allNodes={visibleNodes}
             edges={visibleEdges}
