@@ -3,18 +3,29 @@
 // Layout mirrors Workspace's apps/desktop (read-only reference): sidebar on
 // the left listing opened .canvas files, main pane on the right rendering
 // the active one via `<CanvasView />`. Fit / Recenter controls overlay the
-// canvas at the bottom.
+// canvas at the bottom; a persistent toggle button at the top-left of the
+// canvas pane shows / hides the sidebar.
 //
-// State management stays simple — useState in App, prop-drilled into
-// Sidebar. No Zustand for a smoke harness. File opening goes through the
-// example-local `FilePicker` native module (NSOpenPanel under the hood,
-// multi-select). The library's surface stays content-string-in, never
-// touches the filesystem.
+// **Sidebar toggle UX** is ported from Workspace's DocumentPane:
+// `getLastAction()` (a library-side callback exposed via `onReady`) tells
+// us the user's most recent explicit camera intent — fit / recenter /
+// manual. After toggling the sidebar, we replay that intent against the
+// new canvas pane size so the content stays anchored where the user wanted
+// it. 'manual' (pan / pinch / scroll-wheel / double-tap) means leave the
+// camera alone — toggle just reveals / hides the sidebar.
 //
-// Per #21: this is still a minimal vanilla macOS shell. No NSSplitView with
-// a draggable divider, no resize persistence, no custom title bar — the
-// shell exists to prove the renderer works, not to recreate Workspace.
-import React, {useCallback, useMemo, useRef, useState} from 'react';
+// We don't need Workspace's debounce-vs-NSSplitView-animation dance: our
+// sidebar is a pure-RN flex item, so the layout transition is one-frame.
+// We don't need `leftInsetSV` either — the canvas pane sits *after* the
+// sidebar in the flex row, so CanvasView's `onLayout` captures the
+// post-toggle pane size directly and `fitToViewport()` with no inset is
+// already correct.
+//
+// State management stays simple — useState in App, prop-drilled. No
+// Zustand. File opening goes through the example-local `FilePicker`
+// native module (NSOpenPanel under the hood, multi-select). Library
+// surface stays content-string-in; never touches the filesystem.
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {NativeModules, Pressable, StyleSheet, Text, useColorScheme, View} from 'react-native';
 import {GestureHandlerRootView} from 'react-native-gesture-handler';
 import {CanvasView} from '@workspace.sh/react-native-jsoncanvas';
@@ -48,6 +59,15 @@ const SAMPLE_FILE: OpenedFile = {
   content: SAMPLE_CANVAS,
 };
 
+// Delay between the toggle-triggered layout flip and the camera-intent
+// replay. We can't synchronously read the new pane size — CanvasView's
+// `onLayout` fires on the next frame after React commits the layout
+// change. A short timeout is the pragmatic bridge; one frame would also
+// work but is fragile if the next render is contested. Workspace uses
+// 350ms because NSSplitView animates the toggle; ours is instant, so
+// we only need to clear the React commit boundary.
+const TOGGLE_REPLAY_DELAY_MS = 100;
+
 function dirname(path: string): string {
   const i = path.lastIndexOf('/');
   return i >= 0 ? path.slice(0, i) : path;
@@ -58,6 +78,7 @@ export default function App() {
   const [lastAction, setLastAction] = useState<string>('—');
   const [files, setFiles] = useState<OpenedFile[]>([SAMPLE_FILE]);
   const [activeId, setActiveId] = useState<string>(SAMPLE_FILE.id);
+  const [sidebarVisible, setSidebarVisible] = useState<boolean>(true);
 
   // Renderer text/nodes already react to useColorScheme internally; the
   // wrapper has to match so the canvas-empty background doesn't fight the
@@ -113,18 +134,55 @@ export default function App() {
     });
   }, [activeId]);
 
+  // Sidebar toggle — flip visibility, then replay the user's last explicit
+  // camera intent against the new canvas pane. Ported from Workspace's
+  // DocumentPane (lines 76-125): the `getLastAction()` callback tells us
+  // whether to refit ('fit' → fitToViewport), recenter ('recenter' →
+  // recenter), or leave the camera alone ('manual' — user has since panned
+  // or zoomed by hand).
+  //
+  // No `leftInset` arg passed: the sidebar is OUTSIDE the canvas pane in
+  // our flex layout, so CanvasView's `onLayout` captures the correct
+  // post-toggle pane size and the controls already center against it.
+  const toggleSidebar = useCallback(() => {
+    setSidebarVisible(v => !v);
+    setTimeout(() => {
+      const action = controlsRef.current?.getLastAction() ?? 'manual';
+      if (action === 'fit') {
+        controlsRef.current?.fitToViewport();
+      } else if (action === 'recenter') {
+        controlsRef.current?.recenter();
+      }
+      // 'manual' → leave camera alone; user explicitly placed it where
+      // it is. Sidebar toggle shouldn't override that intent.
+    }, TOGGLE_REPLAY_DELAY_MS);
+  }, []);
+
+  // Surface `last:` for the status pill — bumped on every camera-action
+  // button press. Initial value '—' updates after first interaction.
+  useEffect(() => {
+    setLastAction(controlsRef.current?.getLastAction() ?? '—');
+  }, [activeId, sidebarVisible]);
+
+  // Toggle button background tints. macOS-system palette to match Sidebar.
+  const toggleBg = isDark ? '#2c2c2e' : '#f2f2f7';
+  const toggleBorder = isDark ? '#3a3a3c' : '#c6c6c8';
+  const toggleFg = isDark ? '#e5e5e7' : '#1c1c1e';
+
   return (
     <GestureHandlerRootView
       style={[styles.root, {backgroundColor: isDark ? '#000' : '#fff'}]}>
-      <Sidebar
-        files={files}
-        activeId={activeId}
-        pinnedId={SAMPLE_FILE.id}
-        onActivate={setActiveId}
-        onClose={closeFile}
-        onOpen={openFiles}
-        canOpen={FilePicker != null}
-      />
+      {sidebarVisible && (
+        <Sidebar
+          files={files}
+          activeId={activeId}
+          pinnedId={SAMPLE_FILE.id}
+          onActivate={setActiveId}
+          onClose={closeFile}
+          onOpen={openFiles}
+          canOpen={FilePicker != null}
+        />
+      )}
       <View style={styles.canvasPane}>
         <CanvasView
           // `key` forces a clean remount on file switch so initial fit-content
@@ -137,6 +195,17 @@ export default function App() {
             controlsRef.current = c;
           }}
         />
+        <Pressable
+          onPress={toggleSidebar}
+          style={[
+            styles.sidebarToggle,
+            {backgroundColor: toggleBg, borderColor: toggleBorder},
+          ]}
+          accessibilityLabel={sidebarVisible ? 'Hide sidebar' : 'Show sidebar'}>
+          <Text style={[styles.sidebarToggleText, {color: toggleFg}]}>
+            {sidebarVisible ? '◂' : '▸'}
+          </Text>
+        </Pressable>
         <View style={styles.controls} pointerEvents="box-none">
           <Pressable
             style={({pressed}) => [styles.button, pressed && styles.pressed]}
@@ -166,6 +235,26 @@ export default function App() {
 const styles = StyleSheet.create({
   root: {flex: 1, flexDirection: 'row'},
   canvasPane: {flex: 1},
+  // Toggle button — persistent, sits at top-left of the canvas pane so
+  // it's reachable whether the sidebar is open or closed. macOS-system
+  // sizing (28pt circle) to feel native alongside the system-blue
+  // Open File button in the sidebar.
+  sidebarToggle: {
+    position: 'absolute',
+    top: 16,
+    left: 16,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sidebarToggleText: {
+    fontSize: 14,
+    fontWeight: '600',
+    lineHeight: 14,
+  },
   controls: {
     position: 'absolute',
     bottom: 32,
