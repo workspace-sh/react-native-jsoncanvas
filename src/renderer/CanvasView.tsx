@@ -578,39 +578,70 @@ export function CanvasView({content, basePath, renderMarkdown, initialViewState,
   // RNGH's Gesture.Tap can't see trackpad multi-finger taps on
   // RNGH-macos — diagnostics in workspace-sh/workspace#183 confirmed
   // every trackpad tap arrives as a single-pointer event, so
-  // `minPointers(2)` would silently never fire. We bypass RNGH via the
-  // library's WorkspaceJsonCanvasGesture native module (ios/) which
-  // hooks NSEvent.smartMagnify and emits `onSmartMagnify` here.
+  // `minPointers(2)` would silently never fire. We bypass RNGH via a
+  // native AppKit event stream.
   //
-  // `NSEvent.smartMagnify` is a window-global event monitor, so
-  // `event.x` / `event.y` are window-relative — we subtract the canvas
-  // view's measured window-origin (captured on layout) to get
-  // canvas-local coords before world-coord conversion. If the tap lands
-  // outside the canvas pane (e.g. on a sidebar / chrome), we ignore it.
+  // Source preference (mirrors the scroll-wheel path):
+  //
+  //   1. Consumer-shipped `ScrollWheelBridge` if present (Workspace's
+  //      `apps/desktop` has one — NSView-scoped, so its coords are
+  //      view-local with sidebar-overlay avoidance baked in at the
+  //      AppKit layer; the canvas never sees taps that hit the sidebar).
+  //   2. Library's `WorkspaceJsonCanvasGesture` otherwise (autolinked
+  //      via the podspec; window-global `NSEvent.smartMagnify` monitor).
+  //
+  // Picking ONE source via `??` is load-bearing for drop-in compatibility
+  // with Workspace: subscribing to both would double-fire `handleDoubleTap`
+  // (each on its own emitter) → two zooms per double-tap.
+  //
+  // Coord normalisation differs by source. Library bridge ships
+  // window-global coords; we subtract `canvasOriginRef` (captured via
+  // `View.measureInWindow` on every layout) to get canvas-local. Consumer
+  // bridge ships view-local already — no subtraction. Either way we then
+  // reject taps that land in the left-overlay zone (`leftInsetSV.value`,
+  // for hosts where the canvas spans the full window and the sidebar
+  // overlays it — Workspace's NSSplitView setup; flow-layout hosts pass 0
+  // or leave it undefined).
   //
   // iOS keeps the RNGH single-finger double-tap below.
   useEffect(() => {
-    if (!jsonCanvasGestureEvents) return;
-    const sub = jsonCanvasGestureEvents.addListener(
+    const source = scrollWheelEvents ?? jsonCanvasGestureEvents;
+    if (!source) return;
+    // Whether to apply window→canvas-local subtraction. True for the
+    // library's own bridge (window-global delivery); false for
+    // consumer bridges, which ship view-local coords.
+    const isLibraryBridge = source === jsonCanvasGestureEvents;
+    const sub = source.addListener(
       'onSmartMagnify',
       (event: SmartMagnifyEvent) => {
-        const origin = canvasOriginRef.current;
-        const localX = event.x - origin.x;
-        const localY = event.y - origin.y;
-        if (
-          localX < 0 || localY < 0 ||
-          localX > origin.width || localY > origin.height
-        ) {
-          // Tap was outside the canvas pane (on chrome, sidebar, etc.).
-          return;
+        let localX = event.x;
+        let localY = event.y;
+        if (isLibraryBridge) {
+          const origin = canvasOriginRef.current;
+          localX = event.x - origin.x;
+          localY = event.y - origin.y;
+          if (
+            localX < 0 || localY < 0 ||
+            localX > origin.width || localY > origin.height
+          ) {
+            // Tap landed outside the canvas pane entirely (chrome / sidebar
+            // in a flow-layout host).
+            return;
+          }
         }
+        // Overlay-style chrome check — applies to both bridges. For
+        // Workspace's NSSplitView setup, `leftInsetSV` is the live sidebar
+        // width; without this, double-tapping inside the sidebar overlay
+        // would fire canvas zoom against whatever node sits underneath.
+        const overlayLeft = leftInsetSV?.value ?? 0;
+        if (localX < overlayLeft) return;
         const wx = (localX - translateX.value) / scale.value;
         const wy = (localY - translateY.value) / scale.value;
         handleDoubleTap(wx, wy);
       },
     );
     return () => sub.remove();
-  }, [translateX, translateY, scale, handleDoubleTap]);
+  }, [translateX, translateY, scale, handleDoubleTap, leftInsetSV]);
 
   // Click-and-drag to pan
   const panGesture = useMemo(

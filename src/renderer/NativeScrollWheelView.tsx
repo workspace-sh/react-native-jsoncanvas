@@ -8,21 +8,25 @@ export interface ScrollWheelEvent {
 /**
  * macOS trackpad two-finger double-tap — Safari's "Smart Zoom" gesture.
  *
- * `x` and `y` are top-left-origin coordinates in the application window's
- * coordinate space. The library ships a native module
- * (ios/WorkspaceJsonCanvasGesture.swift, autolinked via
- * react-native-jsoncanvas.podspec) that hooks `NSEvent.smartMagnify` and
- * forwards the event here.
+ * Two possible event sources, with different coordinate-space contracts:
  *
- * Note: coordinates are window-relative, NOT canvas-view-relative. The
- * library's `CanvasView` translates them to view-local coords internally
- * via `View.measureInWindow` so consumers with chrome (sidebar, title-bar
- * inset) get correct hit-testing without any extra wiring. Taps that land
- * outside the canvas pane (e.g. on a sidebar) are ignored by CanvasView.
+ * 1. **Library bridge** — `jsonCanvasGestureEvents` /
+ *    `WorkspaceJsonCanvasGesture` (autolinked via
+ *    `react-native-jsoncanvas.podspec`). Hooks
+ *    `NSEvent.addLocalMonitorForEvents(.smartMagnify)`, which is a
+ *    *window-global* monitor — `x` / `y` are top-left-origin coordinates
+ *    in the application window's coordinate space.
  *
- * Direct consumers of `jsonCanvasGestureEvents` (subscribing without going
- * through CanvasView) still get raw window-relative coords here and own
- * any offset bookkeeping themselves.
+ * 2. **Consumer bridge** — `scrollWheelEvents` /
+ *    `NativeModules.ScrollWheelBridge` (optional; Workspace's
+ *    `apps/desktop` ships one). Typically NSView-scoped, so `x` / `y`
+ *    are view-local with sidebar-overlay handling done at the AppKit
+ *    layer.
+ *
+ * `CanvasView` prefers the consumer bridge if present and normalises
+ * each source's coord-space internally — direct consumers of this
+ * emitter who subscribe outside `CanvasView` must know which bridge
+ * is wired and handle coords accordingly.
  */
 export interface SmartMagnifyEvent {
   x: number;
