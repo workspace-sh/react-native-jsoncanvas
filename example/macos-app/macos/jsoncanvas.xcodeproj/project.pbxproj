@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		09B977E9BB94E6E7E29268D1 /* FilePicker.m in Sources */ = {isa = PBXBuildFile; fileRef = EC3B616D41EF1CC4F5184270 /* FilePicker.m */; };
 		1B06C6B700F0D8AFAE1088A2 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 5CB12ECEBDFF61F563D0DDF4 /* PrivacyInfo.xcprivacy */; };
 		26BD02EFF6038E20DD93C746 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 5CB12ECEBDFF61F563D0DDF4 /* PrivacyInfo.xcprivacy */; };
 		5142014D2437B4B30078DB4F /* AppDelegate.mm in Sources */ = {isa = PBXBuildFile; fileRef = 5142014C2437B4B30078DB4F /* AppDelegate.mm */; };
@@ -30,6 +31,7 @@
 		514201592437B4B40078DB4F /* jsoncanvas.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = jsoncanvas.entitlements; sourceTree = "<group>"; };
 		5CB12ECEBDFF61F563D0DDF4 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		89990ADD0C6878A135BDC733 /* libPods-jsoncanvas-macOS.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-jsoncanvas-macOS.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		EC3B616D41EF1CC4F5184270 /* FilePicker.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = FilePicker.m; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
@@ -66,6 +68,7 @@
 			children = (
 				5142014B2437B4B30078DB4F /* AppDelegate.h */,
 				5142014C2437B4B30078DB4F /* AppDelegate.mm */,
+				EC3B616D41EF1CC4F5184270 /* FilePicker.m */,
 				514201512437B4B40078DB4F /* Assets.xcassets */,
 				514201532437B4B40078DB4F /* Main.storyboard */,
 				514201562437B4B40078DB4F /* Info.plist */,
@@ -330,6 +333,7 @@
 			files = (
 				514201582437B4B40078DB4F /* main.m in Sources */,
 				5142014D2437B4B30078DB4F /* AppDelegate.mm in Sources */,
+				09B977E9BB94E6E7E29268D1 /* FilePicker.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
