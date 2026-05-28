@@ -16,7 +16,7 @@
 //
 // We don't need Workspace's debounce-vs-NSSplitView-animation dance: our
 // sidebar is a pure-RN flex item, so the layout transition is one-frame.
-// We don't need `leftInsetSV` either — the canvas pane sits *after* the
+// We don't need `leftOverlayWidth` either — the canvas pane sits *after* the
 // sidebar in the flex row, so CanvasView's `onLayout` captures the
 // post-toggle pane size directly and `fitToViewport()` with no inset is
 // already correct.

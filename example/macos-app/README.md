@@ -70,7 +70,7 @@ you're building a product, not a smoke test:
 - ❌ Native bridges (`SidebarBridge`, `ScrollWheelBridge`,
   `CanvasControlsBridge`, file pickers)
 - ❌ Zustand store / persistence
-- ❌ Anything that touches the canvas's `leftInsetSV` prop or the
+- ❌ Anything that touches the canvas's `leftOverlayWidth` prop or the
   macOS scroll-wheel pipeline
 
 Those are app-specific concerns. They live in `apps/desktop` in
