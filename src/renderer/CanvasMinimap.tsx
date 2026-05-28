@@ -20,7 +20,7 @@ interface Props {
   scale: SharedValue<number>;
   viewportWidth: number;
   viewportHeight: number;
-  leftInsetSV?: SharedValue<number>;
+  leftOverlayWidth?: SharedValue<number>;
   /** Additional bottom inset (in pt) applied when the minimap is at a
    *  `bottom-*` corner. Consumer-supplied; combines with platform defaults. */
   bottomInset?: number;
@@ -73,7 +73,7 @@ export function CanvasMinimap({
   scale,
   viewportWidth,
   viewportHeight,
-  leftInsetSV,
+  leftOverlayWidth,
   bottomInset = 0,
 }: Props) {
   const size = useMemo(() => getMinimapSize(), []);
@@ -144,8 +144,8 @@ export function CanvasMinimap({
   const viewportRect = useDerivedValue(() => {
     'worklet';
     if (!layout) return {x: 0, y: 0, width: 0, height: 0};
-    const leftInset = leftInsetSV ? leftInsetSV.value : 0;
-    const wx0 = (leftInset - translateX.value) / scale.value;
+    const overlayLeft = leftOverlayWidth ? leftOverlayWidth.value : 0;
+    const wx0 = (overlayLeft - translateX.value) / scale.value;
     const wy0 = (0 - translateY.value) / scale.value;
     const wx1 = (viewportWidth - translateX.value) / scale.value;
     const wy1 = (viewportHeight - translateY.value) / scale.value;

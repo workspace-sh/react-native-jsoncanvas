@@ -42,7 +42,7 @@ interface Props {
    * Called once with control functions the consuming app can use to build
    * its own UI.
    *
-   * `leftInset` (optional, defaults to 0) compensates for an opaque overlay
+   * `leftOverlayWidth` (optional, defaults to 0) compensates for an opaque overlay
    * along the left of the viewport — currently the macOS NSSplitView sidebar.
    * The desktop app reads the live sidebar width on the native side at click
    * time and passes it here per call. CanvasView itself holds NO sidebar
@@ -50,8 +50,8 @@ interface Props {
    * sidebar bookkeeping. Mobile / web pass nothing.
    */
   onReady?: (controls: {
-    fitToViewport: (leftInset?: number) => void;
-    recenter: (leftInset?: number) => void;
+    fitToViewport: (leftOverlayWidth?: number) => void;
+    recenter: (leftOverlayWidth?: number) => void;
     /**
      * Returns the user's most recent explicit camera intent. Used by the
      * sidebar-toggle handler to decide whether to re-apply a fit/recenter
@@ -94,7 +94,7 @@ interface Props {
    * it without triggering React re-renders. Optional — minimap falls back
    * to 0 (full viewport) when not provided.
    */
-  leftInsetSV?: SharedValue<number>;
+  leftOverlayWidth?: SharedValue<number>;
 }
 
 const MIN_SCALE = 0.1; // 0.1 default
@@ -136,7 +136,7 @@ const CAMERA_ANIM_DURATION_MS = 300;
  * break rendering). Content changes flow through React reconciliation via
  * useMemo/useLayoutEffect on the content prop.
  */
-export function CanvasView({content, basePath, renderMarkdown, initialViewState, onViewStateChange, onReady, doubleTapMaxDelayMs, minimap = 'bottom-right', minimapBottomInset = 0, leftInsetSV}: Props) {
+export function CanvasView({content, basePath, renderMarkdown, initialViewState, onViewStateChange, onReady, doubleTapMaxDelayMs, minimap = 'bottom-right', minimapBottomInset = 0, leftOverlayWidth}: Props) {
   // `useWindowDimensions` returns the whole application window — on desktop
   // that includes the sidebar pane that sits to the left of the canvas
   // viewport. Computing "centre" against full-window dimensions lands the
@@ -150,11 +150,27 @@ export function CanvasView({content, basePath, renderMarkdown, initialViewState,
   const [layoutSize, setLayoutSize] = useState<{width: number; height: number} | null>(null);
   const viewportWidth = layoutSize?.width ?? windowWidth;
   const viewportHeight = layoutSize?.height ?? windowHeight;
+  // Window-relative origin of the canvas pane. Captured on every layout via
+  // `View.measureInWindow`. Used by the macOS `onSmartMagnify` listener
+  // below — `NSEvent.smartMagnify` deliveries are window-global, but the
+  // hit-test math operates in canvas-local space, so we subtract this
+  // origin before world-coord conversion. For a full-window canvas the
+  // origin is (0, 0); for a host with a sidebar or other left/top chrome
+  // the canvas pane sits past it, and without this subtraction taps land
+  // off-by-chrome-width and miss every node.
+  const canvasViewRef = useRef<View>(null);
+  const canvasOriginRef = useRef({x: 0, y: 0, width: 0, height: 0});
   const onLayout = useCallback((event: LayoutChangeEvent) => {
     const {width, height} = event.nativeEvent.layout;
     setLayoutSize(prev =>
       prev && prev.width === width && prev.height === height ? prev : {width, height},
     );
+    // `measureInWindow` resolves async on the next layout pass. Storing
+    // into a ref (not state) so it doesn't trigger a re-render — only the
+    // smartMagnify listener reads it, at event-fire time.
+    canvasViewRef.current?.measureInWindow((x, y, w, h) => {
+      canvasOriginRef.current = {x, y, width: w, height: h};
+    });
   }, []);
 
   const colorScheme = resolveScheme(useColorScheme());
@@ -398,25 +414,25 @@ export function CanvasView({content, basePath, renderMarkdown, initialViewState,
 
   // Fit all content to the visible canvas pane.
   //
-  // `leftInset` (defaults to 0) carves out an opaque-overlay area along the
+  // `leftOverlayWidth` (defaults to 0) carves out an opaque-overlay area along the
   // left edge — desktop passes the live macOS sidebar width here. Centring
-  // targets the visible-pane centre `(leftInset + visibleW / 2)`, not the
+  // targets the visible-pane centre `(leftOverlayWidth + visibleW / 2)`, not the
   // full-pane centre. Take the smaller of the two axis ratios so neither
   // dimension overflows. Clamp only to [MIN_SCALE, MAX_SCALE]; no artificial
   // floor or 1.0 ceiling — fit means fit.
   //
-  // `leftInset` is a *parameter*, not a closure value: deps stay identical
+  // `leftOverlayWidth` is a *parameter*, not a closure value: deps stay identical
   // to the original (`[viewportWidth, viewportHeight, bounds, animateCamera]`)
   // so callback identity is stable. Anything that depends on this callback
   // (handleDoubleTap, tapGesture) does NOT recompose when the sidebar
   // changes. That's load-bearing for #154 — earlier attempts that put
   // sidebar state in deps regressed double-tap.
-  const fitToViewport = useCallback((leftInset: number = 0) => {
+  const fitToViewport = useCallback((leftOverlayWidth: number = 0) => {
     lastActionRef.current = 'fit';
     const sw = viewportWidth;
     const sh = viewportHeight;
-    const visibleW = Math.max(1, sw - leftInset);
-    const centreX = leftInset + visibleW / 2;
+    const visibleW = Math.max(1, sw - leftOverlayWidth);
+    const centreX = leftOverlayWidth + visibleW / 2;
 
     // Empty / degenerate bounds (e.g. a canvas with no nodes) — centre the
     // world origin in the viewport at 1:1 rather than dividing by zero
@@ -439,17 +455,17 @@ export function CanvasView({content, basePath, renderMarkdown, initialViewState,
   // padding. Soft-capped at NODE_FIT_SOFT_MAX_SCALE so tiny stencils don't
   // overshoot to MAX_SCALE.
   //
-  // `leftInset` mirrors `fitToViewport`: on macOS the desktop sidebar overlays
+  // `leftOverlayWidth` mirrors `fitToViewport`: on macOS the desktop sidebar overlays
   // the canvas, so centring the node against the full viewport leaves it
   // under the sidebar. Caller (handleDoubleTap) reads the live sidebar width
-  // from `leftInsetSV` and passes it here per call. Kept as a parameter, not
+  // from `leftOverlayWidth` and passes it here per call. Kept as a parameter, not
   // a closure dep, to preserve callback identity — see the matching
   // discussion above `fitToViewport`.
-  const zoomToNode = useCallback((node: CanvasNode, leftInset: number = 0) => {
+  const zoomToNode = useCallback((node: CanvasNode, leftOverlayWidth: number = 0) => {
     const sw = viewportWidth;
     const sh = viewportHeight;
-    const visibleW = Math.max(1, sw - leftInset);
-    const centreX = leftInset + visibleW / 2;
+    const visibleW = Math.max(1, sw - leftOverlayWidth);
+    const centreX = leftOverlayWidth + visibleW / 2;
     const fitW = Math.max(1, visibleW - NODE_FIT_PADDING * 2);
     const fitH = Math.max(1, sh - NODE_FIT_PADDING * 2);
     const s = Math.max(
@@ -479,9 +495,9 @@ export function CanvasView({content, basePath, renderMarkdown, initialViewState,
 
     // Read the live sidebar width once per tap so both the zoom-in and the
     // toggle-back-to-fit branches centre against the visible pane (#165).
-    // `leftInsetSV` is a stable SharedValue ref — adding it to deps doesn't
+    // `leftOverlayWidth` is a stable SharedValue ref — adding it to deps doesn't
     // recompose this callback.
-    const inset = leftInsetSV?.value ?? 0;
+    const inset = leftOverlayWidth?.value ?? 0;
 
     if (!hit || lastZoomedNodeId.current === hit.id) {
       fitToViewport(inset);
@@ -496,17 +512,17 @@ export function CanvasView({content, basePath, renderMarkdown, initialViewState,
     zoomToNode(hit, inset);
     lastZoomedNodeId.current = hit.id;
     lastActionRef.current = 'manual';
-  }, [canvasState, fitToViewport, zoomToNode, isPinching, leftInsetSV]);
+  }, [canvasState, fitToViewport, zoomToNode, isPinching, leftOverlayWidth]);
 
   // Recenter content at current zoom level, against the visible canvas pane.
-  // See `fitToViewport` for the leftInset rationale.
-  const recenter = useCallback((leftInset: number = 0) => {
+  // See `fitToViewport` for the leftOverlayWidth rationale.
+  const recenter = useCallback((leftOverlayWidth: number = 0) => {
     lastActionRef.current = 'recenter';
     const sw = viewportWidth;
     const sh = viewportHeight;
     const s = scale.value;
-    const visibleW = Math.max(1, sw - leftInset);
-    const centreX = leftInset + visibleW / 2;
+    const visibleW = Math.max(1, sw - leftOverlayWidth);
+    const centreX = leftOverlayWidth + visibleW / 2;
 
     if (bounds.width <= 0 || bounds.height <= 0) {
       animateCamera(centreX, sh / 2, s);
@@ -526,8 +542,8 @@ export function CanvasView({content, basePath, renderMarkdown, initialViewState,
 
   useEffect(() => {
     onReady?.({
-      fitToViewport: (leftInset?: number) => fitRef.current(leftInset),
-      recenter: (leftInset?: number) => recenterRef.current(leftInset),
+      fitToViewport: (leftOverlayWidth?: number) => fitRef.current(leftOverlayWidth),
+      recenter: (leftOverlayWidth?: number) => recenterRef.current(leftOverlayWidth),
       getLastAction: () => lastActionRef.current,
     });
     // Only call onReady once per mount — callbacks update via refs
@@ -562,23 +578,70 @@ export function CanvasView({content, basePath, renderMarkdown, initialViewState,
   // RNGH's Gesture.Tap can't see trackpad multi-finger taps on
   // RNGH-macos — diagnostics in workspace-sh/workspace#183 confirmed
   // every trackpad tap arrives as a single-pointer event, so
-  // `minPointers(2)` would silently never fire. We bypass RNGH via the
-  // library's WorkspaceJsonCanvasGesture native module (ios/) which
-  // hooks NSEvent.smartMagnify and emits `onSmartMagnify` here.
+  // `minPointers(2)` would silently never fire. We bypass RNGH via a
+  // native AppKit event stream.
+  //
+  // Source preference (mirrors the scroll-wheel path):
+  //
+  //   1. Consumer-shipped `ScrollWheelBridge` if present (Workspace's
+  //      `apps/desktop` has one — NSView-scoped, so its coords are
+  //      view-local with sidebar-overlay avoidance baked in at the
+  //      AppKit layer; the canvas never sees taps that hit the sidebar).
+  //   2. Library's `WorkspaceJsonCanvasGesture` otherwise (autolinked
+  //      via the podspec; window-global `NSEvent.smartMagnify` monitor).
+  //
+  // Picking ONE source via `??` is load-bearing for drop-in compatibility
+  // with Workspace: subscribing to both would double-fire `handleDoubleTap`
+  // (each on its own emitter) → two zooms per double-tap.
+  //
+  // Coord normalisation differs by source. Library bridge ships
+  // window-global coords; we subtract `canvasOriginRef` (captured via
+  // `View.measureInWindow` on every layout) to get canvas-local. Consumer
+  // bridge ships view-local already — no subtraction. Either way we then
+  // reject taps that land in the left-overlay zone (`leftOverlayWidth.value`,
+  // for hosts where the canvas spans the full window and the sidebar
+  // overlays it — Workspace's NSSplitView setup; flow-layout hosts pass 0
+  // or leave it undefined).
   //
   // iOS keeps the RNGH single-finger double-tap below.
   useEffect(() => {
-    if (!jsonCanvasGestureEvents) return;
-    const sub = jsonCanvasGestureEvents.addListener(
+    const source = scrollWheelEvents ?? jsonCanvasGestureEvents;
+    if (!source) return;
+    // Whether to apply window→canvas-local subtraction. True for the
+    // library's own bridge (window-global delivery); false for
+    // consumer bridges, which ship view-local coords.
+    const isLibraryBridge = source === jsonCanvasGestureEvents;
+    const sub = source.addListener(
       'onSmartMagnify',
       (event: SmartMagnifyEvent) => {
-        const wx = (event.x - translateX.value) / scale.value;
-        const wy = (event.y - translateY.value) / scale.value;
+        let localX = event.x;
+        let localY = event.y;
+        if (isLibraryBridge) {
+          const origin = canvasOriginRef.current;
+          localX = event.x - origin.x;
+          localY = event.y - origin.y;
+          if (
+            localX < 0 || localY < 0 ||
+            localX > origin.width || localY > origin.height
+          ) {
+            // Tap landed outside the canvas pane entirely (chrome / sidebar
+            // in a flow-layout host).
+            return;
+          }
+        }
+        // Overlay-style chrome check — applies to both bridges. For
+        // Workspace's NSSplitView setup, `leftOverlayWidth` is the live sidebar
+        // width; without this, double-tapping inside the sidebar overlay
+        // would fire canvas zoom against whatever node sits underneath.
+        const overlayLeft = leftOverlayWidth?.value ?? 0;
+        if (localX < overlayLeft) return;
+        const wx = (localX - translateX.value) / scale.value;
+        const wy = (localY - translateY.value) / scale.value;
         handleDoubleTap(wx, wy);
       },
     );
     return () => sub.remove();
-  }, [translateX, translateY, scale, handleDoubleTap]);
+  }, [translateX, translateY, scale, handleDoubleTap, leftOverlayWidth]);
 
   // Click-and-drag to pan
   const panGesture = useMemo(
@@ -780,7 +843,7 @@ export function CanvasView({content, basePath, renderMarkdown, initialViewState,
   return (
     <CanvasProvider value={contextValue}>
       <GestureDetector gesture={gesture}>
-        <View style={{flex: 1, overflow: 'hidden'}} onLayout={onLayout} collapsable={false}>
+        <View ref={canvasViewRef} style={{flex: 1, overflow: 'hidden'}} onLayout={onLayout} collapsable={false}>
           <SkiaCanvasLayer
             allNodes={visibleNodes}
             edges={visibleEdges}
@@ -804,7 +867,7 @@ export function CanvasView({content, basePath, renderMarkdown, initialViewState,
               scale={scale}
               viewportWidth={viewportWidth}
               viewportHeight={viewportHeight}
-              leftInsetSV={leftInsetSV}
+              leftOverlayWidth={leftOverlayWidth}
               bottomInset={minimapBottomInset}
             />
           )}
