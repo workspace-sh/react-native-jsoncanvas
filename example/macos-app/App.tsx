@@ -221,6 +221,14 @@ export default function App() {
         canOpen={FilePicker != null}
         widthSV={widthSV}
         visibleSV={visibleSV}
+        // Stop intercepting touches the moment the user toggles closed.
+        // Reanimated only animates the visual width — the React tree
+        // stays mounted at full width-as-prop value, so without this
+        // hint the (off-screen) drag handle + file rows would still
+        // claim taps that the user actually meant for the canvas pane
+        // / toggle button. Flipped back to 'auto' the moment the user
+        // toggles open again; the animation runs interactively.
+        interactable={sidebarVisible}
       />
       <View style={styles.canvasPane}>
         <CanvasView

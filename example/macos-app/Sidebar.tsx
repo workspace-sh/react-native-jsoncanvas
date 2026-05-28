@@ -62,6 +62,13 @@ interface Props {
    *  than mutating `widthSV` itself (which we want to preserve as the
    *  user's resized width). */
   visibleSV: SharedValue<number>;
+  /** Whether the sidebar should accept pointer events. Decoupled from
+   *  the animated visibility because the React tree stays mounted at
+   *  full width-as-prop even while the *rendered* width is 0 — without
+   *  this gate, off-screen rows would still claim taps meant for the
+   *  canvas. App flips it `false` the instant a close is initiated and
+   *  `true` the instant a re-open is initiated. */
+  interactable: boolean;
 }
 
 // Clamp range for drag-resize. Below 180 the file rows truncate too
@@ -69,10 +76,15 @@ interface Props {
 // uses similar floors for the same reason.
 const MIN_WIDTH = 180;
 const MAX_WIDTH = 400;
-// Width of the invisible-but-interactive drag column at the sidebar's
-// right edge. 6pt is wide enough to hit reliably without making the
-// sidebar's right border feel "chunky".
-const RESIZE_HANDLE_WIDTH = 6;
+// Width of the drag column at the sidebar's right edge. 10pt is the hit
+// target; a centred 1pt vertical line gives the visual affordance. Kept
+// entirely *within* the sidebar's bounds (no negative `right` straddle)
+// so the gesture region can never bleed into the canvas pane — earlier
+// revisions used `right: -3` to straddle the border and that caused two
+// regressions: canvas pan clicks near the left edge got intercepted, and
+// when the sidebar collapsed to width 0 the handle still sat over the
+// toggle button at the canvas pane's top-left corner.
+const RESIZE_HANDLE_WIDTH = 10;
 
 function FileItem({
   file,
@@ -120,6 +132,7 @@ export function Sidebar({
   canOpen,
   widthSV,
   visibleSV,
+  interactable,
 }: Props) {
   const isDark = useColorScheme() === 'dark';
 
@@ -134,9 +147,16 @@ export function Sidebar({
   // `widthSV` so the sidebar tracks the cursor at native frame rate.
   // Min/max clamp inline rather than via reactions so the gesture itself
   // never "fights" itself against a clamp event.
+  //
+  // `activeOffsetX([-3, 3])` so a small wiggle doesn't grab the gesture
+  // away from a tap that just brushed the handle. `shouldCancelWhenOutside(false)`
+  // so dragging past the handle into the canvas continues the resize
+  // rather than cancelling — standard slider-handle UX.
   const dragGesture = useMemo(
     () =>
       Gesture.Pan()
+        .activeOffsetX([-3, 3])
+        .shouldCancelWhenOutside(false)
         .onChange(event => {
           'worklet';
           const next = widthSV.value + event.changeX;
@@ -147,6 +167,7 @@ export function Sidebar({
 
   return (
     <Animated.View
+      pointerEvents={interactable ? 'auto' : 'none'}
       style={[
         styles.container,
         isDark ? styles.containerDark : styles.containerLight,
@@ -175,12 +196,19 @@ export function Sidebar({
           ItemSeparatorComponent={() => <View style={styles.separator} />}
         />
       </View>
-      {/* Right-edge drag handle. Sits on top of the sidebar's right
-          border via absolute positioning so it's hit-target-only — no
-          visual change. Z-order doesn't matter because the GestureDetector
-          intercepts before content underneath. */}
+      {/* Right-edge drag handle. Entirely within the sidebar (no negative
+          straddle). Contains a centred 1pt vertical line indicator so the
+          user can see where to grab — sized to be subtle in both light
+          and dark mode without screaming "I am a UI control." */}
       <GestureDetector gesture={dragGesture}>
-        <View style={styles.resizeHandle} />
+        <View style={styles.resizeHandle}>
+          <View
+            style={[
+              styles.resizeHandleIndicator,
+              {backgroundColor: isDark ? '#5a5a5c' : '#a0a0a5'},
+            ]}
+          />
+        </View>
       </GestureDetector>
     </Animated.View>
   );
@@ -260,9 +288,18 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     bottom: 0,
-    // Straddle the sidebar's right border by half the handle width so the
-    // hit region extends a few px into the canvas pane — easier to grab.
-    right: -RESIZE_HANDLE_WIDTH / 2,
+    // Sits at the sidebar's right edge, entirely *within* the sidebar
+    // bounds. The visible indicator inside makes the grabbable area
+    // obvious; the wider hit zone is the surrounding transparent area.
+    right: 0,
     width: RESIZE_HANDLE_WIDTH,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  resizeHandleIndicator: {
+    width: 1,
+    height: '60%',
+    borderRadius: 0.5,
+    opacity: 0.7,
   },
 });
