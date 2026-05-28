@@ -69,10 +69,6 @@ const TOGGLE_ANIMATION_MS = 250;
 // replay to land after the last layout event. 50ms is enough to clear the
 // final commit boundary without feeling delayed.
 const TOGGLE_REPLAY_PADDING_MS = 50;
-// Initial / reset sidebar width. Matches what Workspace's NSSplitView
-// uses as its default sidebar width, so the two apps feel like the same
-// family at first launch.
-const DEFAULT_SIDEBAR_WIDTH = 220;
 
 function dirname(path: string): string {
   const i = path.lastIndexOf('/');
@@ -90,20 +86,11 @@ export default function App() {
   // knows which chevron / label to render.
   const [sidebarVisible, setSidebarVisible] = useState<boolean>(true);
 
-  // Sidebar width + visibility, as Reanimated SharedValues:
-  //
-  //   - `widthSV` persists the user's drag-resized width. Survives close
-  //     and re-open (we never write 0 here — the close animation goes
-  //     through visibleSV instead).
-  //   - `visibleSV` is the 0..1 animator. Sidebar's `useAnimatedStyle`
-  //     reads `widthSV.value * visibleSV.value` to compute the rendered
-  //     width every frame.
-  //
-  // Same shape Workspace uses for `sidebarWidthSV` (the SV it passes to
-  // the library as `leftOverlayWidth`). If Workspace's NSSplitView ever
-  // hands its sidebar width to a pure-RN host via this app, the SV they
-  // already produce slots straight in.
-  const widthSV = useSharedValue(DEFAULT_SIDEBAR_WIDTH);
+  // Sidebar open/close animator, 0..1. Sidebar's `useAnimatedStyle` reads
+  // `SIDEBAR_WIDTH * visibleSV.value` for the rendered width, so the
+  // collapse animation runs entirely through this one shared value with no
+  // React re-renders. (Drag-to-resize was removed — see Sidebar.tsx for
+  // why: a second RNGH GestureDetector breaks canvas pinch/pan on macOS.)
   const visibleSV = useSharedValue(1);
 
   // Renderer text/nodes already react to useColorScheme internally; the
@@ -166,10 +153,6 @@ export default function App() {
   // ('fit' → fitToViewport), recenter ('recenter' → recenter), or leave
   // the camera alone ('manual' — user has since panned or zoomed by hand).
   //
-  // Why we animate `visibleSV` and not `widthSV`: keeping the user's
-  // resized width preserved across close / re-open. Multiplying the two
-  // gives the rendered width while keeping the "intended" width intact.
-  //
   // No `leftOverlayWidth` arg passed to fit/recenter: the sidebar is
   // OUTSIDE the canvas pane in our flex layout, so CanvasView's `onLayout`
   // captures the correct post-animation pane size and the controls
@@ -219,7 +202,6 @@ export default function App() {
         onClose={closeFile}
         onOpen={openFiles}
         canOpen={FilePicker != null}
-        widthSV={widthSV}
         visibleSV={visibleSV}
         // Stop intercepting touches the moment the user toggles closed.
         // Reanimated only animates the visual width — the React tree
