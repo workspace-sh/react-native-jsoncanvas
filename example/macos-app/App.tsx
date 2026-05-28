@@ -28,6 +28,7 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {NativeModules, Pressable, StyleSheet, Text, useColorScheme, View} from 'react-native';
 import {GestureHandlerRootView} from 'react-native-gesture-handler';
+import {useSharedValue, withTiming, Easing} from 'react-native-reanimated';
 import {CanvasView} from '@workspace.sh/react-native-jsoncanvas';
 import {SAMPLE_CANVAS} from './fixtures';
 import {Sidebar, type OpenedFile} from './Sidebar';
@@ -59,14 +60,19 @@ const SAMPLE_FILE: OpenedFile = {
   content: SAMPLE_CANVAS,
 };
 
-// Delay between the toggle-triggered layout flip and the camera-intent
-// replay. We can't synchronously read the new pane size — CanvasView's
-// `onLayout` fires on the next frame after React commits the layout
-// change. A short timeout is the pragmatic bridge; one frame would also
-// work but is fragile if the next render is contested. Workspace uses
-// 350ms because NSSplitView animates the toggle; ours is instant, so
-// we only need to clear the React commit boundary.
-const TOGGLE_REPLAY_DELAY_MS = 100;
+// Sidebar open/close animation duration. 250ms matches NSSplitView's
+// system-default toggle feel; long enough to read as deliberate, short
+// enough to not block subsequent interaction.
+const TOGGLE_ANIMATION_MS = 250;
+// Padding past the animation duration before we replay the camera intent.
+// CanvasView's `onLayout` fires throughout the animation, so we want the
+// replay to land after the last layout event. 50ms is enough to clear the
+// final commit boundary without feeling delayed.
+const TOGGLE_REPLAY_PADDING_MS = 50;
+// Initial / reset sidebar width. Matches what Workspace's NSSplitView
+// uses as its default sidebar width, so the two apps feel like the same
+// family at first launch.
+const DEFAULT_SIDEBAR_WIDTH = 220;
 
 function dirname(path: string): string {
   const i = path.lastIndexOf('/');
@@ -78,7 +84,27 @@ export default function App() {
   const [lastAction, setLastAction] = useState<string>('—');
   const [files, setFiles] = useState<OpenedFile[]>([SAMPLE_FILE]);
   const [activeId, setActiveId] = useState<string>(SAMPLE_FILE.id);
+  // React-side mirror of the visibility state for the toggle button label /
+  // accessibility hint. The actual width animation runs through the
+  // `visibleSV` SharedValue below — this boolean is just so the JSX
+  // knows which chevron / label to render.
   const [sidebarVisible, setSidebarVisible] = useState<boolean>(true);
+
+  // Sidebar width + visibility, as Reanimated SharedValues:
+  //
+  //   - `widthSV` persists the user's drag-resized width. Survives close
+  //     and re-open (we never write 0 here — the close animation goes
+  //     through visibleSV instead).
+  //   - `visibleSV` is the 0..1 animator. Sidebar's `useAnimatedStyle`
+  //     reads `widthSV.value * visibleSV.value` to compute the rendered
+  //     width every frame.
+  //
+  // Same shape Workspace uses for `sidebarWidthSV` (the SV it passes to
+  // the library as `leftOverlayWidth`). If Workspace's NSSplitView ever
+  // hands its sidebar width to a pure-RN host via this app, the SV they
+  // already produce slots straight in.
+  const widthSV = useSharedValue(DEFAULT_SIDEBAR_WIDTH);
+  const visibleSV = useSharedValue(1);
 
   // Renderer text/nodes already react to useColorScheme internally; the
   // wrapper has to match so the canvas-empty background doesn't fight the
@@ -134,18 +160,31 @@ export default function App() {
     });
   }, [activeId]);
 
-  // Sidebar toggle — flip visibility, then replay the user's last explicit
-  // camera intent against the new canvas pane. Ported from Workspace's
-  // DocumentPane (lines 76-125): the `getLastAction()` callback tells us
-  // whether to refit ('fit' → fitToViewport), recenter ('recenter' →
-  // recenter), or leave the camera alone ('manual' — user has since panned
-  // or zoomed by hand).
+  // Sidebar toggle — animate `visibleSV` 0..1, then replay the user's
+  // last explicit camera intent against the new canvas pane. Ported from
+  // Workspace's DocumentPane: `getLastAction()` tells us whether to refit
+  // ('fit' → fitToViewport), recenter ('recenter' → recenter), or leave
+  // the camera alone ('manual' — user has since panned or zoomed by hand).
   //
-  // No `leftInset` arg passed: the sidebar is OUTSIDE the canvas pane in
-  // our flex layout, so CanvasView's `onLayout` captures the correct
-  // post-toggle pane size and the controls already center against it.
+  // Why we animate `visibleSV` and not `widthSV`: keeping the user's
+  // resized width preserved across close / re-open. Multiplying the two
+  // gives the rendered width while keeping the "intended" width intact.
+  //
+  // No `leftOverlayWidth` arg passed to fit/recenter: the sidebar is
+  // OUTSIDE the canvas pane in our flex layout, so CanvasView's `onLayout`
+  // captures the correct post-animation pane size and the controls
+  // already center against it.
   const toggleSidebar = useCallback(() => {
+    const goingHidden = sidebarVisible;
     setSidebarVisible(v => !v);
+    visibleSV.value = withTiming(goingHidden ? 0 : 1, {
+      duration: TOGGLE_ANIMATION_MS,
+      // easeInOutCubic — symmetric so close and re-open feel matched.
+      easing: Easing.bezier(0.42, 0, 0.58, 1),
+    });
+    // Replay after the animation lands. CanvasView's onLayout fires
+    // throughout the tween (sidebar's width changes every frame, canvas
+    // pane reflows), so the final layout commit is what we react to.
     setTimeout(() => {
       const action = controlsRef.current?.getLastAction() ?? 'manual';
       if (action === 'fit') {
@@ -155,8 +194,8 @@ export default function App() {
       }
       // 'manual' → leave camera alone; user explicitly placed it where
       // it is. Sidebar toggle shouldn't override that intent.
-    }, TOGGLE_REPLAY_DELAY_MS);
-  }, []);
+    }, TOGGLE_ANIMATION_MS + TOGGLE_REPLAY_PADDING_MS);
+  }, [sidebarVisible, visibleSV]);
 
   // Surface `last:` for the status pill — bumped on every camera-action
   // button press. Initial value '—' updates after first interaction.
@@ -172,17 +211,17 @@ export default function App() {
   return (
     <GestureHandlerRootView
       style={[styles.root, {backgroundColor: isDark ? '#000' : '#fff'}]}>
-      {sidebarVisible && (
-        <Sidebar
-          files={files}
-          activeId={activeId}
-          pinnedId={SAMPLE_FILE.id}
-          onActivate={setActiveId}
-          onClose={closeFile}
-          onOpen={openFiles}
-          canOpen={FilePicker != null}
-        />
-      )}
+      <Sidebar
+        files={files}
+        activeId={activeId}
+        pinnedId={SAMPLE_FILE.id}
+        onActivate={setActiveId}
+        onClose={closeFile}
+        onOpen={openFiles}
+        canOpen={FilePicker != null}
+        widthSV={widthSV}
+        visibleSV={visibleSV}
+      />
       <View style={styles.canvasPane}>
         <CanvasView
           // `key` forces a clean remount on file switch so initial fit-content
