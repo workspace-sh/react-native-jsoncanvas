@@ -79,7 +79,8 @@
     "remark-frontmatter": "^3.0.0",
     "remark-gfm": "^1.0.0",
     "remark-parse": "^9.0.0",
-    "unified": "^9.2.2"
+    "unified": "^9.2.2",
+    "use-color": "^2.0.4"
   },
   "devDependencies": {
     "@react-native/eslint-config": "^0.81.2",
