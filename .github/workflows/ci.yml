@@ -1,0 +1,46 @@
+name: CI
+
+# Typecheck + lint + test the library on every push to develop and every PR
+# targeting it. Scoped to the library only (src/) — the example apps under
+# example/* are npm workspaces with heavy native deps (Expo, react-native-macos,
+# Skia) that need a Mac and provisioning to build, so CI installs root-only
+# (`--workspaces=false`) and never touches them. Their build health is verified
+# manually on-device; this workflow guards the publishable surface.
+
+on:
+  push:
+    branches: [develop]
+  pull_request:
+    branches: [develop]
+
+# Cancel superseded runs on the same ref so a rapid push sequence doesn't
+# queue redundant work.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: typecheck · lint · test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # Root package only — skip the example/* workspaces and their native
+      # deps. The lockfile is committed, so `npm ci` is reproducible.
+      - name: Install (library only)
+        run: npm ci --workspaces=false
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
