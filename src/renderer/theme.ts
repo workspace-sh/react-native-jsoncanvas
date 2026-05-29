@@ -1,4 +1,9 @@
-import {color, Color, type OKLCH} from 'use-color/core';
+// Import from the package main entry (not the `/core` subpath): the main
+// entry has `main`/`module` fallback fields, so it resolves under Metro
+// regardless of whether package-exports is enabled. The `/core` subpath is
+// exports-only — depending on it would force every downstream consumer's
+// Metro to enable `unstable_enablePackageExports`. See PR #60.
+import {color, Color, type OKLCH} from 'use-color';
 import {type ColorSchemeName} from 'react-native';
 
 export type ColorScheme = 'light' | 'dark';
