@@ -1,0 +1,63 @@
+# CI for @workspace.sh/react-native-jsoncanvas.
+#
+# Runs on every PR against develop and on every push to develop. Three jobs
+# in parallel: typecheck, lint, test. All three are required to be green
+# before a PR can merge (set up via branch protection on develop — manual
+# repo setting, not encoded here).
+#
+# Node 20 matches the engines field in package.json ("node": ">=20") and
+# Workspace's own toolchain. Single Node version on purpose — adding 22 / 24
+# matrix runs triples CI time for negligible value at this scale; revisit
+# when there's a real consumer pinning a different Node version.
+
+name: CI
+
+on:
+  push:
+    branches: [develop]
+  pull_request:
+    branches: [develop]
+
+# Cancel superseded runs on the same ref — saves runner minutes on
+# rapid-fire pushes during a long review cycle. Pushes to develop don't
+# cancel (they should always complete to publish status).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm test
