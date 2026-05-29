@@ -2,7 +2,7 @@
 // constant rather than read from disk at runtime — Metro doesn't transform
 // .canvas files by default, and the bundle stays self-contained.
 //
-// Source: ~/Code/Resources/Workspace/Canvas/hesprs-demo.canvas
+// Source: a JSON Canvas export from Workspace (hesprs-demo).
 export const SAMPLE_CANVAS = JSON.stringify(
 {
   "edges": [
