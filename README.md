@@ -2,10 +2,6 @@
 
 React Native renderer for [JSON Canvas](https://jsoncanvas.org/) (`.canvas`) documents. Skia + Reanimated, with pan / pinch / double-tap zoom and an imperative fit / recenter API.
 
-> **Migrating from Workspace's `canvas-ui` / `canvas-core`?** See
-> [MIGRATION.md](./MIGRATION.md) — one prop rename, one import path
-> change, peer-dep floor check, done.
-
 ## Install
 
 ```sh

@@ -1,5 +1,5 @@
-// Left-side file list, styled after Workspace's apps/desktop/src/components/Sidebar.tsx
-// (read-only reference at /Users/leslieoa/Code/Projects/workspace/workspace/...).
+// Left-side file list, styled after Workspace's desktop app sidebar so the
+// two shells feel like the same family of app.
 //
 // Differences from Workspace's version:
 //
