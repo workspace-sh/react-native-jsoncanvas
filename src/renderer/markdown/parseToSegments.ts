@@ -313,11 +313,6 @@ export function parseToSegments(text: string): TextSegment[] {
   return result;
 }
 
-/** Clear the segment cache. Exposed for tests; not part of the render path. */
-export function _clearSegmentCache(): void {
-  _segmentCache.clear();
-}
-
 /**
  * Extract plain rendered text from a markdown/HTML string. Uses the same
  * pipeline as `parseToSegments`, then concatenates segment text. Used for
