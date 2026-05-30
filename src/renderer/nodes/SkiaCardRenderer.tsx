@@ -7,13 +7,13 @@ import type {CanvasNode} from '../../core';
 import type {EnrichedTextNode} from '../extensions/cssclasses';
 import {getNodeColors, type ColorScheme} from '../theme';
 import {devFlags} from '../devFlags';
+import {parallelogramPath} from './shapes';
 
 interface Props {
   node: CanvasNode;
   colorScheme: ColorScheme;
 }
 
-const PARALLELOGRAM_SKEW = 0.2;
 const DEG_TO_RAD = Math.PI / 180;
 
 /**
@@ -85,15 +85,7 @@ function makeSideBorderPath(x: number, y: number, w: number, h: number, r: numbe
 }
 
 function makeParallelogramPath(x: number, y: number, w: number, h: number, direction: 'left' | 'right') {
-  const skew = w * PARALLELOGRAM_SKEW;
-  if (direction === 'left') {
-    return Skia.Path.MakeFromSVGString(
-      `M ${x + skew} ${y} L ${x + w} ${y} L ${x + w - skew} ${y + h} L ${x} ${y + h} Z`
-    );
-  }
-  return Skia.Path.MakeFromSVGString(
-    `M ${x} ${y} L ${x + w - skew} ${y} L ${x + w} ${y + h} L ${x + skew} ${y + h} Z`
-  );
+  return Skia.Path.MakeFromSVGString(parallelogramPath(x, y, w, h, direction));
 }
 
 /** Compute gradient start/end points for a given angle within a rect. */
