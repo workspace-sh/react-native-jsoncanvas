@@ -259,9 +259,7 @@ const parser = unified()
   .use(remarkGfm)
   .use(remarkFrontmatter, ['yaml']);
 
-export function parseToSegments(text: string): TextSegment[] {
-  if (!text) return [];
-
+function parseToSegmentsUncached(text: string): TextSegment[] {
   const normalised = normaliseEmphasis(text);
   const tree = parser.parse(normalised) as Root;
   const segments: TextSegment[] = [];
@@ -276,6 +274,41 @@ export function parseToSegments(text: string): TextSegment[] {
       }
     }
   }
+
+  return result;
+}
+
+// Bounded FIFO cache keyed on the raw markdown string.
+//
+// `parseToSegments` is pure (same text → same segments) but expensive: a full
+// unified/remark CommonMark parse + AST walk per call. On canvas mount it is
+// invoked many times for the *same* text — once for a text node's body in the
+// live React tree, again for the same node in the deferred Picture-recording
+// pass, and again per callout zone via `toPlainText` (header/footer/labels/
+// centered). Memoising collapses all of those to a single parse, which is the
+// dominant slice of the open-time main-thread hang (#55).
+//
+// Keyed on the exact input string. The cap bounds memory across many distinct
+// files/nodes; eviction is simple insertion-order FIFO (oldest out first),
+// which is fine here — the hot set is "every text string in the currently open
+// canvas", comfortably under the cap for typical documents.
+const SEGMENT_CACHE_MAX = 512;
+const _segmentCache = new Map<string, TextSegment[]>();
+
+export function parseToSegments(text: string): TextSegment[] {
+  if (!text) return [];
+
+  const cached = _segmentCache.get(text);
+  if (cached) return cached;
+
+  const result = parseToSegmentsUncached(text);
+
+  if (_segmentCache.size >= SEGMENT_CACHE_MAX) {
+    // Evict oldest insertion (first key) to keep the cache bounded.
+    const oldest = _segmentCache.keys().next().value;
+    if (oldest !== undefined) _segmentCache.delete(oldest);
+  }
+  _segmentCache.set(text, result);
 
   return result;
 }
