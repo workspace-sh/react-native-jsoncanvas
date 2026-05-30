@@ -36,7 +36,7 @@
     "example/*"
   ],
   "scripts": {
-    "postinstall": "patch-package",
+    "postinstall": "if [ -d node_modules/@expo/plist ]; then patch-package; fi",
     "test": "jest",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
