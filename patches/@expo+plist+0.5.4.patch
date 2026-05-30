@@ -1,0 +1,13 @@
+diff --git a/node_modules/@expo/plist/build/parse.js b/node_modules/@expo/plist/build/parse.js
+index 572d7f8..33ca3b7 100644
+--- a/node_modules/@expo/plist/build/parse.js
++++ b/node_modules/@expo/plist/build/parse.js
+@@ -99,7 +99,7 @@ function parsePlistXML(node) {
+         return new_arr;
+     }
+     else if (node.nodeName === 'dict') {
+-        new_obj = Object.create(null);
++        new_obj = {};
+         key = null;
+         counter = 0;
+         if (isEmptyNode(node)) {
