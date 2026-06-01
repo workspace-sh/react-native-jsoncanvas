@@ -519,25 +519,36 @@ function drawTextNode(canvas: SkCanvas, node: TextNode, colorScheme: ColorScheme
     );
   }
 
-  // Side labels — draw rotated text for label-only nodes
-  if (labels.length > 0 && !bodyText.trim() && !header && !footer) {
-    const label = labels[0];
-    const labelText = toPlainText(label.text);
-    const labelFont = getFont(H4);
-    const labelWidth = labelFont.measureText(labelText).width;
-    const isLeft = label.zone === 'label-left';
+  // Side labels (cc-label-left / -right) — draw rotated, for BOTH label-only
+  // and mixed-zone cards. Drawn here (before the body early-returns) so every
+  // exit path includes labels; they occupy the card's edge columns and don't
+  // overlap centred body text. Mirrors the dedicated SkiaCardLabelRenderer in
+  // the live tree (#64). Inside the clip save() from above.
+  if (labels.length > 0) {
     const lCx = node.x + node.width / 2;
     const lCy = node.y + node.height / 2;
-    const angle = isLeft ? -90 : 90;
+    for (const label of labels) {
+      const labelText = toPlainText(label.text);
+      if (!labelText) continue;
+      const labelFont = getFont(H4);
+      const labelWidth = labelFont.measureText(labelText).width;
+      const isLeft = label.zone === 'label-left';
+      const angle = isLeft ? -90 : 90;
 
-    canvas.save();
-    canvas.rotate(angle, lCx, lCy);
-    canvas.drawText(labelText, lCx - labelWidth / 2, lCy + H4.fontSize / 2,
-      useTextPaint(isDark ? '#E5E7EB' : '#1F2937'), labelFont);
-    canvas.restore();
-    canvas.restore();
-    return;
+      canvas.save();
+      canvas.rotate(angle, lCx, lCy);
+      canvas.drawText(labelText, lCx - labelWidth / 2, lCy + H4.fontSize / 2,
+        useTextPaint(isDark ? '#E5E7EB' : '#1F2937'), labelFont);
+      canvas.restore();
+
+      if (!label.noBorder) {
+        const borderX = isLeft ? node.x + 28 : node.x + node.width - 28;
+        canvas.drawLine(borderX, node.y + 1, borderX, node.y + node.height - 1,
+          useStrokePaint(isDark ? '#9CA3AF' : '#6B7280', 0.5));
+      }
+    }
   }
+
   const textColor = isDark ? '#E5E7EB' : '#1F2937';
   const mutedColor = isDark ? '#9CA3AF' : '#6B7280';
 
