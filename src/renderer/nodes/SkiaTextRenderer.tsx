@@ -9,6 +9,7 @@ import {hasCallouts, parseCallouts, getHeader, getFooter, getLabels, getCentered
 import type {ColorScheme} from '../theme';
 import {parseToSegments, toPlainText} from '../markdown';
 import {buildParagraph, getParagraphColours} from '../paragraphBuilder';
+import {shapeClipPath} from './shapes';
 
 const DEG_TO_RAD = Math.PI / 180;
 const ZONE_HEIGHT = 28;
@@ -68,6 +69,16 @@ export function SkiaTextRenderer({node, colorScheme, offsetX, offsetY}: Props) {
   const rotateText = enriched.renderProps?.rotateText;
   const rotateCard = enriched.renderProps?.rotateCard;
   const shape = enriched.renderProps?.shape;
+
+  // Clip text to the card outline so it can't bleed past the edge into
+  // neighbouring nodes (#167). For circle / parallelogram cards, clip to the
+  // actual shape path rather than the bounding rect, so text also respects the
+  // curved / slanted edges (#53). Falls back to the bounding rect for
+  // rectangular and unshaped cards. World coords — survives the rotation Group.
+  const clipX = node.x + offsetX;
+  const clipY = node.y + offsetY;
+  const shapeClip = shapeClipPath(shape, clipX, clipY, node.width, node.height);
+  const clipRegion = shapeClip ?? rect(clipX, clipY, node.width, node.height);
 
   // Parse callout zones (header, footer, labels) from text content
   const {bodyText, callouts} = useMemo(
@@ -223,7 +234,7 @@ export function SkiaTextRenderer({node, colorScheme, offsetX, offsetY}: Props) {
     }
 
     return (
-      <Group clip={rect(node.x + offsetX, node.y + offsetY, node.width, node.height)}>
+      <Group clip={clipRegion}>
         <Group transform={[
           {translateX: labelCx}, {translateY: labelCy},
           {rotate: labelRotation * DEG_TO_RAD},
@@ -302,14 +313,15 @@ export function SkiaTextRenderer({node, colorScheme, offsetX, offsetY}: Props) {
     );
   }
 
-  // Clip the rendered text to the card's world bounds — long body content
-  // would otherwise bleed past the card edge into adjacent nodes (#167).
-  // Top-level-return placement is load-bearing: <Group clip> inside an
-  // element array (the parent's children list) is a no-op per #96. The clip
-  // is in world coords so it survives the rotation Group above it. Intra-
-  // card scroll is tracked separately at #168.
+  // Clip the rendered text to the card outline — long body content would
+  // otherwise bleed past the card edge into adjacent nodes (#167), and on
+  // circle / parallelogram cards past the curved / slanted edge (#53; see
+  // `clipRegion` above). Top-level-return placement is load-bearing:
+  // <Group clip> inside an element array (the parent's children list) is a
+  // no-op per #96. The clip is in world coords so it survives the rotation
+  // Group above it. Intra-card scroll is tracked separately at #168.
   return (
-    <Group clip={rect(node.x + offsetX, node.y + offsetY, node.width, node.height)}>
+    <Group clip={clipRegion}>
       {content}
     </Group>
   );

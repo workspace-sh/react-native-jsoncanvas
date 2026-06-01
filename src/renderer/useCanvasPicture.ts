@@ -8,6 +8,7 @@ import {getNodeColors, type ColorScheme} from './theme';
 import {parseToSegments, toPlainText} from './markdown';
 import {buildParagraph, getParagraphColours} from './paragraphBuilder';
 import {resolveFileUri} from './utils/resolveFileUri';
+import {shapeClipPath, parallelogramPath} from './nodes/shapes';
 
 // ---------- Fonts (duplicated from individual renderers — shared via Skia's internal cache) ----------
 
@@ -245,8 +246,6 @@ async function loadImageCache(uris: string[]): Promise<ImageCache> {
   return cache;
 }
 
-const PARALLELOGRAM_SKEW = 0.2;
-
 // Mirrors `makeSideBorderPath` in SkiaCardRenderer.tsx — see that file for
 // the per-side geometry rationale. The two paths must stay in sync (Picture
 // recording vs live tree).
@@ -278,13 +277,7 @@ function makeSideBorderPath(x: number, y: number, w: number, h: number, r: numbe
 }
 
 function makeParaPath(x: number, y: number, w: number, h: number, dir: 'left' | 'right') {
-  const skew = w * PARALLELOGRAM_SKEW;
-  const path = Skia.Path.MakeFromSVGString(
-    dir === 'left'
-      ? `M ${x + skew} ${y} L ${x + w} ${y} L ${x + w - skew} ${y + h} L ${x} ${y + h} Z`
-      : `M ${x} ${y} L ${x + w - skew} ${y} L ${x + w} ${y + h} L ${x + skew} ${y + h} Z`
-  );
-  return path;
+  return Skia.Path.MakeFromSVGString(parallelogramPath(x, y, w, h, dir));
 }
 
 function drawCard(canvas: SkCanvas, node: CanvasNode, colorScheme: ColorScheme) {
@@ -497,17 +490,34 @@ function drawTextNode(canvas: SkCanvas, node: TextNode, colorScheme: ColorScheme
 
   const isDark = colorScheme === 'dark';
 
-  // Clip the text-node output to its world bounds — mirrors the
+  // Clip the text-node output to the card outline — mirrors the
   // `<Group clip>` wrapper at the bottom of `SkiaTextRenderer` so the Picture
-  // overlay produces the same clipped result during pinch (#167). Every
-  // return path below MUST be preceded by `canvas.restore()` to keep the
-  // save stack balanced.
+  // overlay produces the same clipped result during pinch (#167). For
+  // circle / parallelogram cards, clip to the shape path so text respects the
+  // curved / slanted edge (#53); otherwise the bounding rect. Every return
+  // path below MUST be preceded by `canvas.restore()` to keep the save stack
+  // balanced.
+  const shape = enriched.renderProps?.shape;
+  const shapeClip = shapeClipPath(shape, node.x, node.y, node.width, node.height);
   canvas.save();
-  canvas.clipRect(
-    {x: node.x, y: node.y, width: node.width, height: node.height},
-    1 /* ClipOp.Intersect */,
-    true,
-  );
+  if (shapeClip) {
+    const clipPath = Skia.Path.MakeFromSVGString(shapeClip);
+    if (clipPath) {
+      canvas.clipPath(clipPath, 1 /* ClipOp.Intersect */, true);
+    } else {
+      canvas.clipRect(
+        {x: node.x, y: node.y, width: node.width, height: node.height},
+        1 /* ClipOp.Intersect */,
+        true,
+      );
+    }
+  } else {
+    canvas.clipRect(
+      {x: node.x, y: node.y, width: node.width, height: node.height},
+      1 /* ClipOp.Intersect */,
+      true,
+    );
+  }
 
   // Side labels — draw rotated text for label-only nodes
   if (labels.length > 0 && !bodyText.trim() && !header && !footer) {
@@ -587,7 +597,6 @@ function drawTextNode(canvas: SkCanvas, node: TextNode, colorScheme: ColorScheme
     return;
   }
 
-  const shape = enriched.renderProps?.shape;
   const centerText = enriched.renderProps?.textAlign === 'center'
     || centered != null
     || shape === 'circle' || shape === 'parallelogram-left' || shape === 'parallelogram-right';
