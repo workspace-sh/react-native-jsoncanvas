@@ -7,6 +7,7 @@ import {EdgeRenderer} from './edges/EdgeRenderer';
 import {SkiaCardRenderer} from './nodes/SkiaCardRenderer';
 import {SkiaGroupBackgroundRenderer} from './nodes/SkiaGroupBackgroundRenderer';
 import {SkiaTextRenderer} from './nodes/SkiaTextRenderer';
+import {SkiaCardLabelRenderer} from './nodes/SkiaCardLabelRenderer';
 import {SkiaLinkRenderer} from './nodes/SkiaLinkRenderer';
 import {SkiaFileRenderer} from './nodes/SkiaFileRenderer';
 import {SkiaImageRenderer} from './nodes/SkiaImageRenderer';
@@ -184,6 +185,18 @@ export function SkiaCanvasLayer({
         {textNodes.map(node => (
           <SkiaTextRenderer
             key={node.id}
+            node={node}
+            colorScheme={colorScheme}
+            offsetX={0}
+            offsetY={0}
+          />
+        ))}
+        {/* Card side-labels rendered separately so their rotation Group sits
+            at a component top-level (Group transform is a no-op inside an
+            element array — #64). Renderer no-ops for label-less nodes. */}
+        {textNodes.map(node => (
+          <SkiaCardLabelRenderer
+            key={`label-${node.id}`}
             node={node}
             colorScheme={colorScheme}
             offsetX={0}

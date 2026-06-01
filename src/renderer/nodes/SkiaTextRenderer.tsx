@@ -5,7 +5,7 @@ import {
 } from '@shopify/react-native-skia';
 import type {TextNode} from '../../core';
 import type {EnrichedTextNode} from '../extensions/cssclasses';
-import {hasCallouts, parseCallouts, getHeader, getFooter, getLabels, getCenteredCallout} from '../extensions/callouts';
+import {hasCallouts, parseCallouts, getHeader, getFooter, getCenteredCallout} from '../extensions/callouts';
 import type {ColorScheme} from '../theme';
 import {parseToSegments, toPlainText} from '../markdown';
 import {buildParagraph, getParagraphColours} from '../paragraphBuilder';
@@ -87,7 +87,6 @@ export function SkiaTextRenderer({node, colorScheme, offsetX, offsetY}: Props) {
   );
   const header = useMemo(() => getHeader(callouts), [callouts]);
   const footer = useMemo(() => getFooter(callouts), [callouts]);
-  const labels = useMemo(() => getLabels(callouts), [callouts]);
   const centered = useMemo(() => getCenteredCallout(callouts), [callouts]);
 
   // Adjust available height for header/footer zones
@@ -194,93 +193,10 @@ export function SkiaTextRenderer({node, colorScheme, offsetX, offsetY}: Props) {
     }
   }
 
-  // Side labels — for label-only nodes (no body/header/footer), return
-  // rotated Group as top-level (Group transform works at top level).
-  // For mixed nodes, render label horizontally as fallback (#96).
-  if (labels.length > 0 && bodyParagraph == null && !header && !footer) {
-    const label = labels[0];
-    const labelFont = getFont(H4);
-    const labelText = toPlainText(label.text);
-    const labelTextWidth = labelFont.measureText(labelText).width;
-    const isLeft = label.zone === 'label-left';
-    const labelCx = node.x + offsetX + node.width / 2;
-    const labelCy = node.y + offsetY + node.height / 2;
-    const labelRotation = isLeft ? -90 : 90;
-
-    const labelElements: React.ReactElement[] = [];
-    labelElements.push(
-      <Text
-        key="label-text"
-        x={labelCx - labelTextWidth / 2}
-        y={labelCy + H4.fontSize / 2}
-        text={labelText}
-        font={labelFont}
-        color={textColor}
-      />
-    );
-    if (!label.noBorder) {
-      const borderX = isLeft
-        ? node.x + offsetX + ZONE_HEIGHT
-        : node.x + offsetX + node.width - ZONE_HEIGHT;
-      labelElements.push(
-        <Line
-          key="label-border"
-          p1={vec(borderX, node.y + offsetY + 1)}
-          p2={vec(borderX, node.y + offsetY + node.height - 1)}
-          color={mutedColor}
-          strokeWidth={0.5}
-        />
-      );
-    }
-
-    return (
-      <Group clip={clipRegion}>
-        <Group transform={[
-          {translateX: labelCx}, {translateY: labelCy},
-          {rotate: labelRotation * DEG_TO_RAD},
-          {translateX: -labelCx}, {translateY: -labelCy},
-        ]}>
-          {labelElements}
-        </Group>
-      </Group>
-    );
-  }
-
-  // Labels in mixed-content nodes: render horizontally as fallback (#96)
-  labels.forEach((label, li) => {
-    const labelFont = getFont(H4);
-    const labelText = toPlainText(label.text);
-    const labelTextWidth = labelFont.measureText(labelText).width;
-    const labelX = node.x + offsetX + (node.width - labelTextWidth) / 2;
-    const labelY = node.y + offsetY + node.height / 2 + H4.fontSize / 2;
-
-    elements.push(
-      <Text
-        key={`label-${label.zone}-${li}`}
-        x={labelX}
-        y={labelY}
-        text={labelText}
-        font={labelFont}
-        color={textColor}
-      />
-    );
-
-    if (!label.noBorder) {
-      const isLeft = label.zone === 'label-left';
-      const borderX = isLeft
-        ? node.x + offsetX + ZONE_HEIGHT
-        : node.x + offsetX + node.width - ZONE_HEIGHT;
-      elements.push(
-        <Line
-          key={`label-border-${label.zone}-${li}`}
-          p1={vec(borderX, node.y + offsetY + 1)}
-          p2={vec(borderX, node.y + offsetY + node.height - 1)}
-          color={mutedColor}
-          strokeWidth={0.5}
-        />
-      );
-    }
-  });
+  // Side labels (cc-label-left / -right) are rendered by the dedicated
+  // SkiaCardLabelRenderer (a sibling in SkiaCanvasLayer), so their rotation
+  // Group sits at a component top-level and rotates correctly even on
+  // mixed-zone cards (#64). This renderer draws header/footer/body only.
 
   // Body text — rendered as a single Skia Paragraph with native word
   // wrapping, mixed styles, and text decoration support.
