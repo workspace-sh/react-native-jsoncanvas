@@ -128,6 +128,15 @@ npm run lint      # eslint src
 
 Tests use a separate `tsconfig.test.json` so the library's main `tsconfig.json` stays free of `jest` / `node` types.
 
+### Strategic direction
+
+The library is structured to allow `src/core/` to be replaced by a Rust
+crate exposed via JSI (native) and `wasm-bindgen` (web) in a future major
+version. The renderer (`src/renderer/`) stays in TypeScript. See
+[`docs/rust-core-port-plan.md`](docs/rust-core-port-plan.md) for the
+sub-issue decomposition and open architectural questions tracked under
+[#6](https://github.com/workspace-sh/react-native-jsoncanvas/issues/6).
+
 ### Example apps
 
 Example harnesses live under `example/` and follow the org's standard layout
