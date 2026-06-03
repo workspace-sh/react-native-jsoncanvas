@@ -1,0 +1,56 @@
+{
+	"nodes": [
+		{
+			"id": "text-1",
+			"type": "text",
+			"x": 0,
+			"y": 0,
+			"width": 200,
+			"height": 100,
+			"text": "A text node",
+			"color": "1"
+		},
+		{
+			"id": "file-1",
+			"type": "file",
+			"x": 300,
+			"y": 0,
+			"width": 200,
+			"height": 100,
+			"file": "Assets/diagram.png",
+			"color": "#FF8800"
+		},
+		{
+			"id": "link-1",
+			"type": "link",
+			"x": 0,
+			"y": 200,
+			"width": 200,
+			"height": 100,
+			"url": "https://jsoncanvas.org"
+		},
+		{
+			"id": "group-1",
+			"type": "group",
+			"x": -50,
+			"y": -50,
+			"width": 600,
+			"height": 400,
+			"label": "Everything",
+			"color": "6"
+		}
+	],
+	"edges": [
+		{
+			"id": "edge-1",
+			"fromNode": "text-1",
+			"fromSide": "right",
+			"fromEnd": "none",
+			"toNode": "file-1",
+			"toSide": "left",
+			"toEnd": "arrow",
+			"color": "3",
+			"label": "points to"
+		}
+	]
+}
