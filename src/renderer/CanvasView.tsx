@@ -32,7 +32,12 @@ interface Props {
   content: string;
   /** Directory containing the canvas file, used to resolve relative paths. */
   basePath?: string;
-  /** Optional markdown renderer injected by the app. */
+  /**
+   * @deprecated Vestigial. No renderer code consumes this — `TextNodeContent`
+   * returns null and all text-node bodies render via Skia's `paragraphBuilder`.
+   * The prop is accepted (and ignored) so existing consumers don't break.
+   * Will be removed in a future major version. See #26.
+   */
   renderMarkdown?: (text: string, colorScheme: ColorScheme) => React.ReactElement;
   /** Saved view state to restore (pan/zoom position). */
   initialViewState?: ViewState;

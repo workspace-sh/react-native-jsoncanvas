@@ -117,6 +117,33 @@ The library exposes two layers:
 
 The renderer is consumed through `CanvasView`. The core surface (`parseCanvas`, `createCanvasState`, etc.) is exported alongside if you need to inspect or mutate documents independently.
 
+### Markdown rendering
+
+Text-node bodies are parsed by `paragraphBuilder` (built on the unified /
+remark ecosystem) and rendered through Skia's text API — not as native React
+text components. Going through Skia is intentional: it bypasses a
+`react-native-macos` rendering limitation where native `Text` stops drawing
+beyond ~1500px from the parent view's origin, which would otherwise punch
+holes in any sufficiently large canvas.
+
+**Supported:**
+
+- Inline marks: bold, italic, code spans, link text (rendered as styled runs,
+  not as tappable affordances)
+- Blocks: paragraphs, headings, lists (ordered / unordered / task), code
+  blocks, blockquotes, tables
+- GFM extensions: strikethrough, task list checkboxes
+- YAML frontmatter (parsed and stripped — used by the Canvas Candy extension
+  layer for `cssclasses`, not rendered as document content)
+
+**Not supported:** anything that requires a React component overlay (images
+embedded in markdown, syntax-highlighted code blocks, callouts beyond what
+the `extensions/callouts.ts` layer recognises).
+
+> `CanvasView` exposes a `renderMarkdown` prop for historical reasons; **it
+> is deprecated and ignored**. Text rendering always goes through the Skia
+> path described above. See [#26](https://github.com/workspace-sh/react-native-jsoncanvas/issues/26).
+
 ## Development
 
 ```sh

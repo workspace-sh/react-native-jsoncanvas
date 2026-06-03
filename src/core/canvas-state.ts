@@ -1,9 +1,20 @@
-import type {CanvasDocument, CanvasNode, CanvasEdge, Rect} from './types';
+import type {
+  CanvasColor,
+  CanvasDocument,
+  CanvasEdge,
+  CanvasNode,
+  FileNode,
+  GroupNode,
+  LinkNode,
+  Rect,
+  TextNode,
+} from './types';
 import {createSpatialIndex, type SpatialIndex} from './spatial-index';
 import {
   createCommandHistory,
   invertOperation,
   type CanvasCommandHistory,
+  type GroupBackgroundStyle,
   type Operation,
 } from './operations';
 
@@ -23,7 +34,22 @@ export interface CanvasState {
   resizeNode(nodeId: string, width: number, height: number): void;
   addEdge(edge: CanvasEdge): void;
   removeEdge(edgeId: string): void;
-  updateNodeContent(nodeId: string, changes: Partial<CanvasNode>): void;
+
+  // Per-field update methods. Each is a type-safe alternative to the prior
+  // updateNodeContent(nodeId, Partial<CanvasNode>) signature, which was
+  // FFI-hostile (Partial<T> has no clean Rust equivalent). Each method is a
+  // no-op when the node is missing or of the wrong type. Pass `undefined` to
+  // clear an optional field.
+  updateNodeColor(nodeId: string, color: CanvasColor | undefined): void;
+  updateTextNodeText(nodeId: string, text: string): void;
+  updateLinkNodeUrl(nodeId: string, url: string): void;
+  updateFileNode(nodeId: string, file: string, subpath: string | undefined): void;
+  updateGroupNodeLabel(nodeId: string, label: string | undefined): void;
+  updateGroupNodeBackground(
+    nodeId: string,
+    background: string | undefined,
+    backgroundStyle: GroupBackgroundStyle | undefined,
+  ): void;
 
   undo(): void;
   redo(): void;
@@ -86,10 +112,54 @@ export function createCanvasState(doc: CanvasDocument): CanvasState {
         edges.delete(op.edgeId);
         break;
       }
-      case 'updateNodeContent': {
+      case 'updateNodeColor': {
         const node = nodes.get(op.nodeId);
         if (!node) return;
-        const updated = {...node, ...op.changes} as CanvasNode;
+        const updated: CanvasNode = {...node, color: op.color};
+        nodes.set(op.nodeId, updated);
+        spatialIndex.update(updated);
+        break;
+      }
+      case 'updateTextNodeText': {
+        const node = nodes.get(op.nodeId);
+        if (!node || node.type !== 'text') return;
+        const updated: TextNode = {...node, text: op.text};
+        nodes.set(op.nodeId, updated);
+        spatialIndex.update(updated);
+        break;
+      }
+      case 'updateLinkNodeUrl': {
+        const node = nodes.get(op.nodeId);
+        if (!node || node.type !== 'link') return;
+        const updated: LinkNode = {...node, url: op.url};
+        nodes.set(op.nodeId, updated);
+        spatialIndex.update(updated);
+        break;
+      }
+      case 'updateFileNode': {
+        const node = nodes.get(op.nodeId);
+        if (!node || node.type !== 'file') return;
+        const updated: FileNode = {...node, file: op.file, subpath: op.subpath};
+        nodes.set(op.nodeId, updated);
+        spatialIndex.update(updated);
+        break;
+      }
+      case 'updateGroupNodeLabel': {
+        const node = nodes.get(op.nodeId);
+        if (!node || node.type !== 'group') return;
+        const updated: GroupNode = {...node, label: op.label};
+        nodes.set(op.nodeId, updated);
+        spatialIndex.update(updated);
+        break;
+      }
+      case 'updateGroupNodeBackground': {
+        const node = nodes.get(op.nodeId);
+        if (!node || node.type !== 'group') return;
+        const updated: GroupNode = {
+          ...node,
+          background: op.background,
+          backgroundStyle: op.backgroundStyle,
+        };
         nodes.set(op.nodeId, updated);
         spatialIndex.update(updated);
         break;
@@ -195,14 +265,88 @@ export function createCanvasState(doc: CanvasDocument): CanvasState {
       history.record(op);
     },
 
-    updateNodeContent(nodeId: string, changes: Partial<CanvasNode>): void {
+    updateNodeColor(nodeId: string, color: CanvasColor | undefined): void {
       const node = nodes.get(nodeId);
       if (!node) return;
-      const prevValues: Partial<CanvasNode> = {};
-      for (const key of Object.keys(changes) as Array<keyof CanvasNode>) {
-        (prevValues as Record<string, unknown>)[key] = node[key];
-      }
-      const op: Operation = {type: 'updateNodeContent', nodeId, changes, prevValues};
+      const op: Operation = {
+        type: 'updateNodeColor',
+        nodeId,
+        color,
+        prevColor: node.color,
+      };
+      applyOperation(op);
+      history.record(op);
+    },
+
+    updateTextNodeText(nodeId: string, text: string): void {
+      const node = nodes.get(nodeId);
+      if (!node || node.type !== 'text') return;
+      const op: Operation = {
+        type: 'updateTextNodeText',
+        nodeId,
+        text,
+        prevText: node.text,
+      };
+      applyOperation(op);
+      history.record(op);
+    },
+
+    updateLinkNodeUrl(nodeId: string, url: string): void {
+      const node = nodes.get(nodeId);
+      if (!node || node.type !== 'link') return;
+      const op: Operation = {
+        type: 'updateLinkNodeUrl',
+        nodeId,
+        url,
+        prevUrl: node.url,
+      };
+      applyOperation(op);
+      history.record(op);
+    },
+
+    updateFileNode(nodeId: string, file: string, subpath: string | undefined): void {
+      const node = nodes.get(nodeId);
+      if (!node || node.type !== 'file') return;
+      const op: Operation = {
+        type: 'updateFileNode',
+        nodeId,
+        file,
+        subpath,
+        prevFile: node.file,
+        prevSubpath: node.subpath,
+      };
+      applyOperation(op);
+      history.record(op);
+    },
+
+    updateGroupNodeLabel(nodeId: string, label: string | undefined): void {
+      const node = nodes.get(nodeId);
+      if (!node || node.type !== 'group') return;
+      const op: Operation = {
+        type: 'updateGroupNodeLabel',
+        nodeId,
+        label,
+        prevLabel: node.label,
+      };
+      applyOperation(op);
+      history.record(op);
+    },
+
+    updateGroupNodeBackground(
+      nodeId: string,
+      background: string | undefined,
+      backgroundStyle: GroupBackgroundStyle | undefined,
+    ): void {
+      const node = nodes.get(nodeId);
+      if (!node || node.type !== 'group') return;
+      const op: Operation = {
+        type: 'updateGroupNodeBackground',
+        nodeId,
+        background,
+        backgroundStyle,
+        prevBackground: node.background,
+        prevBackgroundStyle: node.backgroundStyle,
+      };
       applyOperation(op);
       history.record(op);
     },
