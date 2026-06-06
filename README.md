@@ -1,6 +1,8 @@
 # @workspace.sh/react-native-jsoncanvas
 
-React Native renderer for [JSON Canvas](https://jsoncanvas.org/) (`.canvas`) documents. Skia + Reanimated, with pan / pinch / double-tap zoom and an imperative fit / recenter API.
+A React Native renderer for [JSON Canvas](https://jsoncanvas.org/) — the open file format for infinite-canvas notes, originally from Obsidian.
+
+Drop a `.canvas` file in and you get a panning, pinch-zooming canvas with text nodes, file nodes (markdown, images, PDFs), grouped nodes, and connecting edges. Gestures are tuned with Skia and Reanimated for 60fps on iOS, macOS, and Android. The library exposes imperative controls for fit-to-viewport and recentre, plus an extension surface for community conventions like Obsidian cssclasses and callouts.
 
 ## Install
 
