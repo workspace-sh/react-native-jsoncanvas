@@ -17,6 +17,32 @@
  * rather than growing another island.
  */
 
+/** File-node inline labels — the filename drawn inside the node's bounds. */
+export const LABEL = {
+  /**
+   * Baseline distance up from an image node's bottom edge. Pairs with
+   * {@link FILE_IMAGE.labelSpace}, which reserves the room this sits in.
+   */
+  imageBaselineFromBottom: 20,
+  /**
+   * Baseline offset from the vertical centre for a node whose label is its
+   * only content — half a cap-height, so the text reads as centred rather
+   * than hanging below the middle.
+   */
+  centredBaselineNudge: 4,
+} as const;
+
+/** Image content inside a file node. */
+export const FILE_IMAGE = {
+  /** Inset on every side, between the node's bounds and the image. */
+  margin: 8,
+  /**
+   * Vertical room reserved at the bottom for an inline filename label.
+   * Only subtracted when one will actually be drawn — see `hasInlineLabel`.
+   */
+  labelSpace: 28,
+} as const;
+
 /**
  * The file-node hover chip — the filename revealed when the pointer rests
  * over an image file node.

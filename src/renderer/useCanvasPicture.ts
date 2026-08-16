@@ -5,7 +5,8 @@ import type {CanvasNode, CanvasEdge, TextNode, LinkNode, FileNode, GroupNode, Ed
 import type {EnrichedTextNode} from './extensions/cssclasses';
 import {hasCallouts, parseCallouts, getHeader, getFooter, getLabels, getCenteredCallout} from './extensions/callouts';
 import {getNodeColors, getMutedTextColor, getTextColor, type ColorScheme} from './theme';
-import {CHIP} from './metrics';
+import {CHIP, FILE_IMAGE, LABEL} from './metrics';
+import {hasInlineLabel, isImageFile} from './utils/fileNodeLabel';
 import {parseToSegments, toPlainText} from './markdown';
 import {buildParagraph, getParagraphColours} from './paragraphBuilder';
 import {resolveFileUri} from './utils/resolveFileUri';
@@ -196,7 +197,6 @@ const LABEL_PADDING_Y = 4;
 const GROUP_LABEL_FONT_SIZE = 13;
 const GROUP_LABEL_PX = 10;
 const GROUP_LABEL_PY = 4;
-const IMAGE_RE = /\.(png|jpg|jpeg|gif|svg|webp|bmp|ico)$/i;
 const SVG_RE = /\.svg$/i;
 const RASTER_RE = /\.(png|jpg|jpeg|gif|webp|bmp|ico)$/i;
 
@@ -437,9 +437,6 @@ function drawGroupBackground(canvas: SkCanvas, node: GroupNode, imageCache: Imag
   canvas.restore();
 }
 
-const FILE_IMAGE_MARGIN = 8;
-const FILE_LABEL_SPACE = 28;
-
 function drawFileImage(canvas: SkCanvas, node: FileNode, imageCache: ImageCache, basePath?: string) {
   if (!RASTER_RE.test(node.file)) return; // SVGs render live for vector fidelity
   const uri = resolveFileUri(node.file, basePath);
@@ -447,10 +444,15 @@ function drawFileImage(canvas: SkCanvas, node: FileNode, imageCache: ImageCache,
   const entry = imageCache.get(uri);
   if (!entry) return;
 
-  const x = node.x + FILE_IMAGE_MARGIN;
-  const y = node.y + FILE_IMAGE_MARGIN;
-  const w = Math.max(0, node.width - FILE_IMAGE_MARGIN * 2);
-  const h = Math.max(0, node.height - FILE_IMAGE_MARGIN * 2 - FILE_LABEL_SPACE);
+  // Reserve label room only when a label will actually be drawn — otherwise
+  // the image is pushed up the card to clear empty space. Must match
+  // `destBox` in SkiaImageRenderer, or the recording and the live tree place
+  // the same image differently.
+  const labelSpace = hasInlineLabel(node) ? FILE_IMAGE.labelSpace : 0;
+  const x = node.x + FILE_IMAGE.margin;
+  const y = node.y + FILE_IMAGE.margin;
+  const w = Math.max(0, node.width - FILE_IMAGE.margin * 2);
+  const h = Math.max(0, node.height - FILE_IMAGE.margin * 2 - labelSpace);
   if (w === 0 || h === 0) return;
 
   // Raster images are drawn at source resolution. Zoom fidelity is bounded
@@ -659,18 +661,21 @@ function drawLinkNode(canvas: SkCanvas, node: LinkNode, colorScheme: ColorScheme
 }
 
 function drawFileLabel(canvas: SkCanvas, node: FileNode, colorScheme: ColorScheme) {
-  // Image file nodes carry no baked-in label any more — the filename is
-  // revealed on hover instead (#49), and hover lives only in the live Skia
-  // tree. Recording a chip here would freeze it into the pinch snapshot,
-  // showing a label that the live tree beneath has already dismissed.
-  // Mirrors the early return in `SkiaFileRenderer`; the two paths must agree.
-  if (IMAGE_RE.test(node.file)) return;
+  // Where the platform reveals filenames on demand, image nodes carry no
+  // baked-in label (#49) — and the hover chip is never recorded here even
+  // when one is showing. This snapshot stands in for the live tree during a
+  // pinch, so a chip baked into it would freeze mid-gesture, still showing a
+  // label the live tree beneath had already dismissed. Mirrors the early
+  // return in `SkiaFileRenderer`; the two paths must agree.
+  if (!hasInlineLabel(node)) return;
 
   const textColor = getTextColor(colorScheme);
   const mutedColor = getMutedTextColor(colorScheme);
   const fileName = node.file.split('/').pop() ?? node.file;
 
-  const labelY = node.y + node.height / 2 + 4;
+  const labelY = isImageFile(node.file)
+    ? node.y + node.height - LABEL.imageBaselineFromBottom
+    : node.y + node.height / 2 + LABEL.centredBaselineNudge;
   const labelX = node.x + node.width / 2;
 
   const nameFont = getFileNameFont();

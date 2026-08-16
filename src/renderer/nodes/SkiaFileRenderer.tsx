@@ -2,7 +2,8 @@ import React from 'react';
 import {Text, RoundedRect, matchFont} from '@shopify/react-native-skia';
 import type {FileNode} from '../../core';
 import {getChipBackground, getMutedTextColor, getTextColor, type ColorScheme} from '../theme';
-import {CHIP} from '../metrics';
+import {CHIP, LABEL} from '../metrics';
+import {hasInlineLabel, isImageFile} from '../utils/fileNodeLabel';
 
 interface Props {
   node: FileNode;
@@ -29,7 +30,6 @@ function getSubpathFont() {
   return _subpathFont;
 }
 
-const IMAGE_RE = /\.(png|jpg|jpeg|gif|svg|webp|bmp|ico)$/i;
 
 /**
  * File-node labels.
@@ -56,12 +56,15 @@ export function SkiaFileRenderer({node, colorScheme, offsetX, offsetY, revealed 
   const textColor = getTextColor(colorScheme);
   const mutedColor = getMutedTextColor(colorScheme);
   const fileName = node.file.split('/').pop() ?? node.file;
-  const isImage = IMAGE_RE.test(node.file);
+  const isImage = isImageFile(node.file);
+  const inline = hasInlineLabel(node);
 
   const labelX = node.x + offsetX + node.width / 2;
   const nameWidth = nameFont.measureText(fileName).width;
 
-  if (isImage) {
+  // Image node on a platform that can reveal on demand: nothing inline, and
+  // the chip only once the pointer is actually over it.
+  if (isImage && !inline) {
     if (!revealed) return null;
 
     // Below the node rather than over it — the image is the content, and a
@@ -102,7 +105,11 @@ export function SkiaFileRenderer({node, colorScheme, offsetX, offsetY, revealed 
     );
   }
 
-  const labelY = node.y + offsetY + node.height / 2 + 4;
+  // Inline label: under the image on an image node (whose destination box
+  // reserves room for it), vertically centred on a node with no other content.
+  const labelY = isImage
+    ? node.y + offsetY + node.height - LABEL.imageBaselineFromBottom
+    : node.y + offsetY + node.height / 2 + LABEL.centredBaselineNudge;
   const nameX = labelX - nameWidth / 2;
 
   return (
@@ -111,7 +118,7 @@ export function SkiaFileRenderer({node, colorScheme, offsetX, offsetY, revealed 
       {node.subpath && subpathFont && (
         <Text
           x={labelX - subpathFont.measureText(node.subpath).width / 2}
-          y={labelY + 14}
+          y={labelY + CHIP.subpathLineHeight}
           text={node.subpath}
           font={subpathFont}
           color={mutedColor}
