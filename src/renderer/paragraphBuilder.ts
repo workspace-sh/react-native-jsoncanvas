@@ -12,6 +12,7 @@
 import {Skia, TextDecoration} from '@shopify/react-native-skia';
 import type {SkParagraph, SkTextStyle, SkColor} from '@shopify/react-native-skia';
 import type {TextSegment, SegmentStyle} from './markdown';
+import {getLinkColor, getMutedTextColor, getTextColor, type ColorScheme} from './theme';
 
 export interface ParagraphColours {
   text: SkColor;
@@ -23,20 +24,20 @@ export interface ParagraphColours {
 // resolved palette keeps it stable across renders (and across the two
 // rendering paths). Bound at module init — Skia's host object is registered
 // before user JS modules execute.
-export const PARAGRAPH_COLOURS: {light: ParagraphColours; dark: ParagraphColours} = {
+export const PARAGRAPH_COLOURS: Record<ColorScheme, ParagraphColours> = {
   light: {
-    text: Skia.Color('#1F2937'),
-    muted: Skia.Color('#6B7280'),
-    link: Skia.Color('#2563EB'),
+    text: Skia.Color(getTextColor('light')),
+    muted: Skia.Color(getMutedTextColor('light')),
+    link: Skia.Color(getLinkColor('light')),
   },
   dark: {
-    text: Skia.Color('#E5E7EB'),
-    muted: Skia.Color('#9CA3AF'),
-    link: Skia.Color('#60A5FA'),
+    text: Skia.Color(getTextColor('dark')),
+    muted: Skia.Color(getMutedTextColor('dark')),
+    link: Skia.Color(getLinkColor('dark')),
   },
 };
 
-export function getParagraphColours(colorScheme: 'light' | 'dark'): ParagraphColours {
+export function getParagraphColours(colorScheme: ColorScheme): ParagraphColours {
   return colorScheme === 'dark' ? PARAGRAPH_COLOURS.dark : PARAGRAPH_COLOURS.light;
 }
 

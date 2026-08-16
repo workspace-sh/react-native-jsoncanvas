@@ -9,6 +9,9 @@ import {
 } from '@shopify/react-native-skia';
 import type {CanvasEdge, CanvasNode, EdgeSide} from '../../core';
 import {devFlags} from '../devFlags';
+import {EDGE_LABEL_TEXT_COLOR, resolveEdgeColor} from '../theme';
+import {EDGE_LABEL} from '../metrics';
+import {FONT_SIZE} from '../typography';
 
 interface Props {
   edge: CanvasEdge;
@@ -18,28 +21,10 @@ interface Props {
   offsetY?: number;
 }
 
-const PRESET_COLORS: Record<string, string> = {
-  '1': '#EF4444',
-  '2': '#F97316',
-  '3': '#EAB308',
-  '4': '#22C55E',
-  '5': '#3B82F6',
-  '6': '#A855F7',
-};
-
-const DEFAULT_EDGE_COLOR = '#6B7280';
 let _labelFont: ReturnType<typeof matchFont> | null = null;
 function getLabelFont() {
-  if (!_labelFont) _labelFont = matchFont({fontFamily: 'System', fontSize: 12});
+  if (!_labelFont) _labelFont = matchFont({fontFamily: 'System', fontSize: FONT_SIZE.edgeLabel});
   return _labelFont;
-}
-const LABEL_PADDING_X = 8;
-const LABEL_PADDING_Y = 4;
-
-function resolveColor(color?: string): string {
-  if (!color) return DEFAULT_EDGE_COLOR;
-  if (color.startsWith('#')) return color;
-  return PRESET_COLORS[color] ?? DEFAULT_EDGE_COLOR;
 }
 
 function getConnectionPoint(
@@ -127,7 +112,7 @@ function bezierEndAngle(
 }
 
 function EdgeRendererMemoized({edge, fromNode, toNode, offsetX = 0, offsetY = 0}: Props) {
-  const color = resolveColor(edge.color);
+  const color = resolveEdgeColor(edge.color);
   const showFromArrow = edge.fromEnd === 'arrow';
   const showToArrow = edge.toEnd !== 'none';
 
@@ -177,8 +162,8 @@ function EdgeRendererMemoized({edge, fromNode, toNode, offsetX = 0, offsetY = 0}
   const label = edge.label;
   const midX = 0.125 * geometry.from.x + 0.375 * geometry.cp1.x + 0.375 * geometry.cp2.x + 0.125 * geometry.to.x;
   const midY = 0.125 * geometry.from.y + 0.375 * geometry.cp1.y + 0.375 * geometry.cp2.y + 0.125 * geometry.to.y;
-  const labelWidth = label ? getLabelFont().measureText(label).width + LABEL_PADDING_X * 2 : 0;
-  const labelHeight = label ? 12 + LABEL_PADDING_Y * 2 : 0;
+  const labelWidth = label ? getLabelFont().measureText(label).width + EDGE_LABEL.paddingX * 2 : 0;
+  const labelHeight = label ? FONT_SIZE.edgeLabel + EDGE_LABEL.paddingY * 2 : 0;
 
   return (
     <>
@@ -192,15 +177,15 @@ function EdgeRendererMemoized({edge, fromNode, toNode, offsetX = 0, offsetY = 0}
             y={midY - labelHeight / 2}
             width={labelWidth}
             height={labelHeight}
-            r={6}
+            r={EDGE_LABEL.radius}
             color={color}
           />
           <Text
-            x={midX - labelWidth / 2 + LABEL_PADDING_X}
+            x={midX - labelWidth / 2 + EDGE_LABEL.paddingX}
             y={midY + 4}
             text={label}
             font={getLabelFont()}
-            color="#FFFFFF"
+            color={EDGE_LABEL_TEXT_COLOR}
           />
         </Group>
       )}
@@ -211,7 +196,7 @@ function EdgeRendererMemoized({edge, fromNode, toNode, offsetX = 0, offsetY = 0}
 function EdgeRendererInline({edge, fromNode, toNode, offsetX = 0, offsetY = 0}: Props) {
   const from = getConnectionPoint(fromNode, edge.fromSide, offsetX, offsetY);
   const to = getConnectionPoint(toNode, edge.toSide, offsetX, offsetY);
-  const color = resolveColor(edge.color);
+  const color = resolveEdgeColor(edge.color);
   const {cp1, cp2} = computeControlPoints(from, to, edge.fromSide, edge.toSide);
 
   const showFromArrow = edge.fromEnd === 'arrow';
@@ -243,8 +228,8 @@ function EdgeRendererInline({edge, fromNode, toNode, offsetX = 0, offsetY = 0}: 
   const label = edge.label;
   const midX = 0.125 * from.x + 0.375 * cp1.x + 0.375 * cp2.x + 0.125 * to.x;
   const midY = 0.125 * from.y + 0.375 * cp1.y + 0.375 * cp2.y + 0.125 * to.y;
-  const labelWidth = label ? getLabelFont().measureText(label).width + LABEL_PADDING_X * 2 : 0;
-  const labelHeight = label ? 12 + LABEL_PADDING_Y * 2 : 0;
+  const labelWidth = label ? getLabelFont().measureText(label).width + EDGE_LABEL.paddingX * 2 : 0;
+  const labelHeight = label ? FONT_SIZE.edgeLabel + EDGE_LABEL.paddingY * 2 : 0;
 
   return (
     <>
@@ -263,15 +248,15 @@ function EdgeRendererInline({edge, fromNode, toNode, offsetX = 0, offsetY = 0}: 
             y={midY - labelHeight / 2}
             width={labelWidth}
             height={labelHeight}
-            r={6}
+            r={EDGE_LABEL.radius}
             color={color}
           />
           <Text
-            x={midX - labelWidth / 2 + LABEL_PADDING_X}
+            x={midX - labelWidth / 2 + EDGE_LABEL.paddingX}
             y={midY + 4}
             text={label}
             font={getLabelFont()}
-            color="#FFFFFF"
+            color={EDGE_LABEL_TEXT_COLOR}
           />
         </Group>
       )}

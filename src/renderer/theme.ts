@@ -138,6 +138,67 @@ export function getChipBackground(scheme: ColorScheme): string {
   return scheme === 'dark' ? '#1C1C1EEB' : '#FFFFFFF0';
 }
 
+/** Hyperlink text colour for the given scheme. */
+export function getLinkColor(scheme: ColorScheme): string {
+  return scheme === 'dark' ? '#60A5FA' : '#2563EB';
+}
+
+/**
+ * Edge colours.
+ *
+ * Deliberately *not* the node presets above: edges are drawn as strokes on the
+ * canvas background rather than as filled cards, so they use fully saturated
+ * hues where `getNodeColors` desaturates and lightens for a card fill. Same
+ * colour *codes* from the JSON Canvas spec, different rendering intent.
+ */
+export const EDGE_PRESET_COLORS: Record<string, string> = {
+  '1': '#EF4444',
+  '2': '#F97316',
+  '3': '#EAB308',
+  '4': '#22C55E',
+  '5': '#3B82F6',
+  '6': '#A855F7',
+};
+
+export const DEFAULT_EDGE_COLOR = '#6B7280';
+
+/**
+ * Resolve an edge's `color` field to a concrete colour.
+ *
+ * Per the JSON Canvas spec the field is either a preset code (`"1"`–`"6"`) or
+ * a hex string; anything else falls back to the default.
+ */
+export function resolveEdgeColor(color?: string): string {
+  if (!color) return DEFAULT_EDGE_COLOR;
+  if (color.startsWith('#')) return color;
+  return EDGE_PRESET_COLORS[color] ?? DEFAULT_EDGE_COLOR;
+}
+
+/**
+ * Edge label text. Scheme-independent: labels sit on a pill filled with the
+ * edge's own colour, so the contrast that matters is against that fill, not
+ * against the canvas.
+ */
+export const EDGE_LABEL_TEXT_COLOR = '#FFFFFF';
+
+/**
+ * Drop shadow under cards that opt into one (`cc-card-shadow`).
+ * Scheme-independent — a shadow is an absence of light in both schemes.
+ */
+export const CARD_SHADOW_COLOR = 'rgba(0,0,0,0.4)';
+
+export interface MinimapColors {
+  border: string;
+  viewportStroke: string;
+}
+
+/** Minimap chrome: its border, and the stroke marking the current viewport. */
+export function getMinimapColors(scheme: ColorScheme): MinimapColors {
+  return scheme === 'dark'
+    ? {border: '#3F3F46', viewportStroke: '#FBBF24'}
+    : {border: '#D4D4D8', viewportStroke: '#F59E0B'};
+}
+
 /** Resolve a colorScheme from React Native's useColorScheme(). */
 export function resolveScheme(scheme: ColorSchemeName): ColorScheme {
   return scheme === 'light' ? 'light' : 'dark';
