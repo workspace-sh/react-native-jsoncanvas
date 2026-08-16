@@ -3,7 +3,7 @@ import {View, Platform, StyleSheet, type ViewStyle} from 'react-native';
 import {Canvas, Rect, RoundedRect, Group} from '@shopify/react-native-skia';
 import {useDerivedValue, type SharedValue} from 'react-native-reanimated';
 import type {CanvasNode, CanvasEdge} from '../core';
-import {getCanvasBackground, type ColorScheme} from './theme';
+import {getCanvasBackground, getMinimapColors, type ColorScheme} from './theme';
 import {hasCssClasses, enrichNodes, type EnrichedNode} from './extensions/cssclasses';
 import {SkiaCardRenderer} from './nodes/SkiaCardRenderer';
 import {EdgeRenderer} from './edges/EdgeRenderer';
@@ -77,6 +77,12 @@ export function CanvasMinimap({
   bottomInset = 0,
 }: Props) {
   const size = useMemo(() => getMinimapSize(), []);
+  // Typed rather than inline so a mistyped key fails the build instead of
+  // being dropped silently at runtime.
+  const canvasStyle = useMemo<ViewStyle>(
+    () => ({width: size.width, height: size.height}),
+    [size],
+  );
 
   // Enrich nodes so SkiaCardRenderer picks up cssclasses renderProps
   // (shape variants, pill, drop shadow, etc.). No-op when no frontmatter.
@@ -160,8 +166,7 @@ export function CanvasMinimap({
   if (!layout) return null;
 
   const bgColor = getCanvasBackground(colorScheme);
-  const borderColor = colorScheme === 'dark' ? '#3F3F46' : '#D4D4D8';
-  const viewportStroke = colorScheme === 'dark' ? '#FBBF24' : '#F59E0B';
+  const {border: borderColor, viewportStroke} = getMinimapColors(colorScheme);
 
   // World → minimap transform. Matches the matrix pattern CanvasView uses
   // for the main camera: `[translate, scale]` produces
@@ -177,7 +182,7 @@ export function CanvasMinimap({
       pointerEvents="none"
       style={[styles.container, getPositionStyle(position, bottomInset), {width: size.width, height: size.height}]}
     >
-      <Canvas style={{width: size.width, height: size.height}}>
+      <Canvas style={canvasStyle}>
         <RoundedRect x={0} y={0} width={size.width} height={size.height} r={BORDER_RADIUS} color={bgColor} />
         <RoundedRect
           x={0.5} y={0.5}

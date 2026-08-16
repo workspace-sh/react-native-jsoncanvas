@@ -5,7 +5,7 @@ import {
 } from '@shopify/react-native-skia';
 import type {CanvasNode} from '../../core';
 import type {EnrichedTextNode} from '../extensions/cssclasses';
-import {getNodeColors, type ColorScheme} from '../theme';
+import {CARD_SHADOW_COLOR, getNodeColors, type ColorScheme} from '../theme';
 import {devFlags} from '../devFlags';
 import {parallelogramPath} from './shapes';
 
@@ -198,7 +198,7 @@ export function SkiaCardRenderer({node, colorScheme}: Props) {
             x={node.x} y={node.y} width={node.width} height={node.height}
             r={borderRadius} color={fillColor} opacity={fillOpacity}
           >
-            {dropShadow && <Shadow dx={3} dy={3} blur={6} color="rgba(0,0,0,0.4)" />}
+            {dropShadow && <Shadow dx={3} dy={3} blur={6} color={CARD_SHADOW_COLOR} />}
           </RoundedRect>
           {hasGradient && gradPts && (
             <RoundedRect
