@@ -4,26 +4,23 @@ import type {SkPicture, SkCanvas, SkFont, SkPaint, SkImage} from '@shopify/react
 import type {CanvasNode, CanvasEdge, TextNode, LinkNode, FileNode, GroupNode, EdgeSide} from '../core';
 import type {EnrichedTextNode} from './extensions/cssclasses';
 import {hasCallouts, parseCallouts, getHeader, getFooter, getLabels, getCenteredCallout} from './extensions/callouts';
-import {getNodeColors, getMutedTextColor, getTextColor, type ColorScheme} from './theme';
-import {CHIP, FILE_IMAGE, LABEL} from './metrics';
+import {
+  getNodeColors, getMutedTextColor, getTextColor, getLinkColor,
+  resolveEdgeColor, EDGE_LABEL_TEXT_COLOR, type ColorScheme,
+} from './theme';
+import {CHIP, EDGE_LABEL, FILE_IMAGE, GROUP_LABEL, LABEL, LINK, NODE, ZONE} from './metrics';
+import {FONT_SIZE, H4, type FontConfig} from './typography';
 import {hasInlineLabel, isImageFile} from './utils/fileNodeLabel';
 import {parseToSegments, toPlainText} from './markdown';
 import {buildParagraph, getParagraphColours} from './paragraphBuilder';
 import {resolveFileUri} from './utils/resolveFileUri';
 import {shapeClipPath, parallelogramPath} from './nodes/shapes';
 
-// ---------- Fonts (duplicated from individual renderers — shared via Skia's internal cache) ----------
-
-interface FontConfig {
-  fontSize: number;
-  lineHeight: number;
-  fontWeight?: 'bold' | 'normal';
-  fontFamily?: string;
-}
-
-// H4 is used for header/footer/label zones, which are rendered as single-line
-// `canvas.drawText` for now — body text uses `buildParagraph` instead.
-const H4: FontConfig = {fontSize: 13, lineHeight: 18, fontWeight: 'bold'};
+// ---------- Fonts ----------
+//
+// Sizes come from typography.ts, shared with the live tree. The SkFont
+// objects themselves stay local: this path caches by FontConfig identity,
+// the live tree by a string key, and a handle is not safely shared across.
 
 const fontCache = new Map<FontConfig, SkFont>();
 function getFont(config: FontConfig): SkFont {
@@ -48,23 +45,23 @@ let _fileSubpathFont: SkFont | null = null;
 let _labelFont: SkFont | null = null;
 
 function getHostnameFont(): SkFont {
-  if (!_hostnameFont) _hostnameFont = matchFont({fontFamily: 'System', fontSize: 16, fontWeight: 'bold'});
+  if (!_hostnameFont) _hostnameFont = matchFont({fontFamily: 'System', fontSize: FONT_SIZE.linkHostname, fontWeight: 'bold'});
   return _hostnameFont;
 }
 function getUrlFont(): SkFont {
-  if (!_urlFont) _urlFont = matchFont({fontFamily: 'System', fontSize: 11});
+  if (!_urlFont) _urlFont = matchFont({fontFamily: 'System', fontSize: FONT_SIZE.linkUrl});
   return _urlFont;
 }
 function getFileNameFont(): SkFont {
-  if (!_fileNameFont) _fileNameFont = matchFont({fontFamily: 'System', fontSize: 12, fontWeight: 'bold'});
+  if (!_fileNameFont) _fileNameFont = matchFont({fontFamily: 'System', fontSize: FONT_SIZE.fileName, fontWeight: 'bold'});
   return _fileNameFont;
 }
 function getFileSubpathFont(): SkFont {
-  if (!_fileSubpathFont) _fileSubpathFont = matchFont({fontFamily: 'System', fontSize: 10});
+  if (!_fileSubpathFont) _fileSubpathFont = matchFont({fontFamily: 'System', fontSize: FONT_SIZE.fileSubpath});
   return _fileSubpathFont;
 }
 function getEdgeLabelFont(): SkFont {
-  if (!_labelFont) _labelFont = matchFont({fontFamily: 'System', fontSize: 12});
+  if (!_labelFont) _labelFont = matchFont({fontFamily: 'System', fontSize: FONT_SIZE.edgeLabel});
   return _labelFont;
 }
 
@@ -77,6 +74,14 @@ const _strokePaint = Skia.Paint();
 _strokePaint.setStyle(PaintStyle.Stroke);
 const _textPaint = Skia.Paint();
 const _gradientPaint = Skia.Paint();
+
+/**
+ * Paint for `drawImageRect`. Opaque white is not a colour choice — the image
+ * supplies its own pixels and the paint only has to avoid tinting or fading
+ * them. Named so it doesn't read as a themeable value that someone should
+ * later route through `theme.ts`.
+ */
+const IMAGE_PAINT_COLOR = '#FFFFFF';
 
 function useFillPaint(color: string): SkPaint {
   _fillPaint.setColor(Skia.Color(color));
@@ -132,19 +137,11 @@ function useTextPaint(color: string): SkPaint {
   return _textPaint;
 }
 
-// ---------- Edge geometry (duplicated from EdgeRenderer) ----------
-
-const EDGE_PRESET_COLORS: Record<string, string> = {
-  '1': '#EF4444', '2': '#F97316', '3': '#EAB308',
-  '4': '#22C55E', '5': '#3B82F6', '6': '#A855F7',
-};
-const DEFAULT_EDGE_COLOR = '#6B7280';
-
-function resolveEdgeColor(color?: string): string {
-  if (!color) return DEFAULT_EDGE_COLOR;
-  if (color.startsWith('#')) return color;
-  return EDGE_PRESET_COLORS[color] ?? DEFAULT_EDGE_COLOR;
-}
+// ---------- Edge geometry ----------
+//
+// Colours and label metrics are shared with `EdgeRenderer` via `theme.ts` and
+// `metrics.ts`; only the curve maths below is restated here, because the two
+// paths express it differently (SkPath commands vs declarative components).
 
 function getConnectionPoint(node: CanvasNode, side?: EdgeSide, ox = 0, oy = 0) {
   const cx = node.x + node.width / 2 + ox;
@@ -191,12 +188,6 @@ function bezierEndAngle(p: {x: number; y: number}, cp: {x: number; y: number}): 
 
 // ---------- Draw functions ----------
 
-const TEXT_PADDING = 12;
-const LABEL_PADDING_X = 8;
-const LABEL_PADDING_Y = 4;
-const GROUP_LABEL_FONT_SIZE = 13;
-const GROUP_LABEL_PX = 10;
-const GROUP_LABEL_PY = 4;
 const SVG_RE = /\.svg$/i;
 const RASTER_RE = /\.(png|jpg|jpeg|gif|webp|bmp|ico)$/i;
 
@@ -422,7 +413,7 @@ function drawGroupBackground(canvas: SkCanvas, node: GroupNode, imageCache: Imag
     const dy = node.y + (node.height - dh) / 2;
     const src = {x: 0, y: 0, width: imgWidth, height: imgHeight};
     const dst = {x: dx, y: dy, width: dw, height: dh};
-    canvas.drawImageRect(image, src, dst, useFillPaint('#FFFFFF'));
+    canvas.drawImageRect(image, src, dst, useFillPaint(IMAGE_PAINT_COLOR));
   } else {
     // contain
     const scl = Math.min(node.width / imgWidth, node.height / imgHeight);
@@ -432,7 +423,7 @@ function drawGroupBackground(canvas: SkCanvas, node: GroupNode, imageCache: Imag
     const dy = node.y + (node.height - dh) / 2;
     const src = {x: 0, y: 0, width: imgWidth, height: imgHeight};
     const dst = {x: dx, y: dy, width: dw, height: dh};
-    canvas.drawImageRect(image, src, dst, useFillPaint('#FFFFFF'));
+    canvas.drawImageRect(image, src, dst, useFillPaint(IMAGE_PAINT_COLOR));
   }
   canvas.restore();
 }
@@ -471,7 +462,7 @@ function drawFileImage(canvas: SkCanvas, node: FileNode, imageCache: ImageCache,
 
   canvas.save();
   canvas.clipRect({x, y, width: w, height: h}, 1 /* ClipOp.Intersect */, true);
-  canvas.drawImageRect(image, src, dst, useFillPaint('#FFFFFF'));
+  canvas.drawImageRect(image, src, dst, useFillPaint(IMAGE_PAINT_COLOR));
   canvas.restore();
 }
 
@@ -488,10 +479,8 @@ function drawTextNode(canvas: SkCanvas, node: TextNode, colorScheme: ColorScheme
   const footer = getFooter(callouts);
   const labels = getLabels(callouts);
   const centered = getCenteredCallout(callouts);
-  const headerSpace = header ? 28 : 0;
-  const footerSpace = footer ? 28 : 0;
-
-  const isDark = colorScheme === 'dark';
+  const headerSpace = header ? ZONE.height : 0;
+  const footerSpace = footer ? ZONE.height : 0;
 
   // Clip the text-node output to the card outline — mirrors the
   // `<Group clip>` wrapper at the bottom of `SkiaTextRenderer` so the Picture
@@ -541,22 +530,22 @@ function drawTextNode(canvas: SkCanvas, node: TextNode, colorScheme: ColorScheme
       canvas.save();
       canvas.rotate(angle, lCx, lCy);
       canvas.drawText(labelText, lCx - labelWidth / 2, lCy + H4.fontSize / 2,
-        useTextPaint(isDark ? '#E5E7EB' : '#1F2937'), labelFont);
+        useTextPaint(getTextColor(colorScheme)), labelFont);
       canvas.restore();
 
       if (!label.noBorder) {
-        const borderX = isLeft ? node.x + 28 : node.x + node.width - 28;
+        const borderX = isLeft ? node.x + ZONE.height : node.x + node.width - ZONE.height;
         canvas.drawLine(borderX, node.y + 1, borderX, node.y + node.height - 1,
-          useStrokePaint(isDark ? '#9CA3AF' : '#6B7280', 0.5));
+          useStrokePaint(getMutedTextColor(colorScheme), 0.5));
       }
     }
   }
 
-  const textColor = isDark ? '#E5E7EB' : '#1F2937';
-  const mutedColor = isDark ? '#9CA3AF' : '#6B7280';
+  const textColor = getTextColor(colorScheme);
+  const mutedColor = getMutedTextColor(colorScheme);
 
-  const maxWidth = Math.max(1, node.width - TEXT_PADDING * 2);
-  const maxHeight = node.height - TEXT_PADDING * 2 - headerSpace - footerSpace;
+  const maxWidth = Math.max(1, node.width - NODE.padding * 2);
+  const maxHeight = node.height - NODE.padding * 2 - headerSpace - footerSpace;
   if (maxHeight <= 0) {
     canvas.restore();
     return;
@@ -569,7 +558,7 @@ function drawTextNode(canvas: SkCanvas, node: TextNode, colorScheme: ColorScheme
     const hText = toPlainText(header.text);
     if (hText) {
       const hW = hFont.measureText(hText).width;
-      const hX = node.x + TEXT_PADDING + (maxWidth - hW) / 2;
+      const hX = node.x + NODE.padding + (maxWidth - hW) / 2;
       canvas.drawText(hText, hX, hY, useTextPaint(textColor), hFont);
     }
     if (!header.noBorder) {
@@ -585,7 +574,7 @@ function drawTextNode(canvas: SkCanvas, node: TextNode, colorScheme: ColorScheme
     const fText = toPlainText(footer.text);
     if (fText) {
       const fW = fFont.measureText(fText).width;
-      const fX = node.x + TEXT_PADDING + (maxWidth - fW) / 2;
+      const fX = node.x + NODE.padding + (maxWidth - fW) / 2;
       canvas.drawText(fText, fX, fY, useTextPaint(textColor), fFont);
     }
     if (!footer.noBorder) {
@@ -616,8 +605,8 @@ function drawTextNode(canvas: SkCanvas, node: TextNode, colorScheme: ColorScheme
     || shape === 'circle' || shape === 'parallelogram-left' || shape === 'parallelogram-right';
 
   const paragraphHeight = paragraph.getHeight();
-  const baseX = node.x + TEXT_PADDING;
-  const bodyYStart = node.y + TEXT_PADDING + headerSpace;
+  const baseX = node.x + NODE.padding;
+  const bodyYStart = node.y + NODE.padding + headerSpace;
   const yOffset = centerText && paragraphHeight < maxHeight
     ? (maxHeight - paragraphHeight) / 2
     : 0;
@@ -643,16 +632,15 @@ function drawTextNode(canvas: SkCanvas, node: TextNode, colorScheme: ColorScheme
 }
 
 function drawLinkNode(canvas: SkCanvas, node: LinkNode, colorScheme: ColorScheme) {
-  const isDark = colorScheme === 'dark';
-  const linkColor = isDark ? '#60A5FA' : '#2563EB';
-  const mutedColor = isDark ? '#9CA3AF' : '#6B7280';
+  const linkColor = getLinkColor(colorScheme);
+  const mutedColor = getMutedTextColor(colorScheme);
 
   const match = node.url.match(/^https?:\/\/([^/?#]+)/);
   const hostname = match ? match[1] : node.url;
 
-  const x = node.x + TEXT_PADDING;
-  const urlBarY = node.y + TEXT_PADDING + 11;
-  const hostnameY = node.y + TEXT_PADDING + 40;
+  const x = node.x + NODE.padding;
+  const urlBarY = node.y + NODE.padding + LINK.urlBarOffset;
+  const hostnameY = node.y + NODE.padding + LINK.hostnameOffset;
   const urlY = hostnameY + 24;
 
   canvas.drawText(node.url, x, urlBarY, useTextPaint(mutedColor), getUrlFont());
@@ -698,19 +686,19 @@ function drawFileLabel(canvas: SkCanvas, node: FileNode, colorScheme: ColorSchem
 function drawGroupLabel(canvas: SkCanvas, node: GroupNode, colorScheme: ColorScheme) {
   if (!node.label) return;
   const colors = getNodeColors(node.color, colorScheme);
-  const font = matchFont({fontFamily: 'System', fontSize: GROUP_LABEL_FONT_SIZE, fontWeight: 'bold'});
+  const font = matchFont({fontFamily: 'System', fontSize: FONT_SIZE.groupLabel, fontWeight: 'bold'});
 
   const textWidth = font.measureText(node.label).width;
-  const pillWidth = textWidth + GROUP_LABEL_PX * 2;
-  const pillHeight = GROUP_LABEL_FONT_SIZE + GROUP_LABEL_PY * 2;
+  const pillWidth = textWidth + GROUP_LABEL.paddingX * 2;
+  const pillHeight = FONT_SIZE.groupLabel + GROUP_LABEL.paddingY * 2;
   const x = node.x;
   const y = node.y - pillHeight - 8;
 
   canvas.drawRRect(
-    {rect: {x, y, width: pillWidth, height: pillHeight}, rx: 6, ry: 6},
+    {rect: {x, y, width: pillWidth, height: pillHeight}, rx: EDGE_LABEL.radius, ry: EDGE_LABEL.radius},
     useFillPaint(colors.active),
   );
-  canvas.drawText(node.label, x + GROUP_LABEL_PX, y + GROUP_LABEL_PY + GROUP_LABEL_FONT_SIZE, useTextPaint(colors.text), font);
+  canvas.drawText(node.label, x + GROUP_LABEL.paddingX, y + GROUP_LABEL.paddingY + FONT_SIZE.groupLabel, useTextPaint(colors.text), font);
 }
 
 function drawEdge(canvas: SkCanvas, edge: CanvasEdge, fromNode: CanvasNode, toNode: CanvasNode) {
@@ -752,14 +740,14 @@ function drawEdge(canvas: SkCanvas, edge: CanvasEdge, fromNode: CanvasNode, toNo
     const midX = 0.125 * from.x + 0.375 * cp1.x + 0.375 * cp2.x + 0.125 * to.x;
     const midY = 0.125 * from.y + 0.375 * cp1.y + 0.375 * cp2.y + 0.125 * to.y;
     const font = getEdgeLabelFont();
-    const labelWidth = font.measureText(edge.label).width + LABEL_PADDING_X * 2;
-    const labelHeight = 12 + LABEL_PADDING_Y * 2;
+    const labelWidth = font.measureText(edge.label).width + EDGE_LABEL.paddingX * 2;
+    const labelHeight = FONT_SIZE.edgeLabel + EDGE_LABEL.paddingY * 2;
 
     canvas.drawRRect(
-      {rect: {x: midX - labelWidth / 2, y: midY - labelHeight / 2, width: labelWidth, height: labelHeight}, rx: 6, ry: 6},
+      {rect: {x: midX - labelWidth / 2, y: midY - labelHeight / 2, width: labelWidth, height: labelHeight}, rx: EDGE_LABEL.radius, ry: EDGE_LABEL.radius},
       useFillPaint(color),
     );
-    canvas.drawText(edge.label, midX - labelWidth / 2 + LABEL_PADDING_X, midY + 4, useTextPaint('#FFFFFF'), font);
+    canvas.drawText(edge.label, midX - labelWidth / 2 + EDGE_LABEL.paddingX, midY + 4, useTextPaint(EDGE_LABEL_TEXT_COLOR), font);
   }
 }
 

@@ -1,4 +1,5 @@
 import React, {useMemo} from 'react';
+import {StyleSheet, type ViewStyle} from 'react-native';
 import {Canvas, Group, Picture, processTransform3d} from '@shopify/react-native-skia';
 import {useDerivedValue, type SharedValue} from 'react-native-reanimated';
 import type {CanvasEdge, CanvasNode, TextNode, LinkNode, FileNode, GroupNode} from '../core';
@@ -159,15 +160,17 @@ export function SkiaCanvasLayer({
     [fileNodes, hoveredFileNodeId],
   );
 
+  // Only the size is dynamic; the positioning half is static and lives in
+  // `styles`. Typed as ViewStyle so a bad key is a compile error rather than
+  // a silently ignored property at runtime.
+  const canvasStyle = useMemo<ViewStyle>(
+    () => ({width: viewportWidth, height: viewportHeight}),
+    [viewportWidth, viewportHeight],
+  );
+
   return (
     <Canvas
-      style={{
-        position: 'absolute',
-        left: 0,
-        top: 0,
-        width: viewportWidth,
-        height: viewportHeight,
-      }}
+      style={[styles.canvas, canvasStyle]}
       pointerEvents="none"
     >
       <Group matrix={matrix}>
@@ -288,3 +291,9 @@ export function SkiaCanvasLayer({
     </Canvas>
   );
 }
+
+const styles = StyleSheet.create({
+  /** Pinned to the viewport's top-left; the size half is applied inline
+   *  because it tracks layout. */
+  canvas: {position: 'absolute', left: 0, top: 0},
+});

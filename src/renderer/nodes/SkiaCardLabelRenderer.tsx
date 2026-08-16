@@ -4,17 +4,17 @@ import type {TextNode} from '../../core';
 import type {EnrichedTextNode} from '../extensions/cssclasses';
 import {hasCallouts, parseCallouts, getLabels} from '../extensions/callouts';
 import {toPlainText} from '../markdown';
-import {type ColorScheme} from '../theme';
+import {getMutedTextColor, getTextColor, type ColorScheme} from '../theme';
+import {ZONE} from '../metrics';
+import {H4} from '../typography';
 import {shapeClipPath} from './shapes';
 
 const DEG_TO_RAD = Math.PI / 180;
-const ZONE_HEIGHT = 28;
-const LABEL_FONT_SIZE = 13;
 
 let _labelFont: ReturnType<typeof matchFont> | null = null;
 function getLabelFont() {
   if (!_labelFont) {
-    _labelFont = matchFont({fontFamily: 'System', fontSize: LABEL_FONT_SIZE, fontWeight: 'bold'});
+    _labelFont = matchFont({fontFamily: 'System', fontSize: H4.fontSize, fontWeight: 'bold'});
   }
   return _labelFont;
 }
@@ -51,9 +51,8 @@ export function SkiaCardLabelRenderer({node, colorScheme, offsetX, offsetY}: Pro
   const labels = getLabels(callouts);
   if (labels.length === 0) return null;
 
-  const isDark = colorScheme === 'dark';
-  const textColor = isDark ? '#E5E7EB' : '#1F2937';
-  const mutedColor = isDark ? '#9CA3AF' : '#6B7280';
+  const textColor = getTextColor(colorScheme);
+  const mutedColor = getMutedTextColor(colorScheme);
   const font = getLabelFont();
   if (!font) return null;
 
@@ -82,7 +81,7 @@ export function SkiaCardLabelRenderer({node, colorScheme, offsetX, offsetY}: Pro
       <Text
         key="text"
         x={cx - labelTextWidth / 2}
-        y={cy + LABEL_FONT_SIZE / 2}
+        y={cy + H4.fontSize / 2}
         text={labelText}
         font={font}
         color={textColor}
@@ -90,8 +89,8 @@ export function SkiaCardLabelRenderer({node, colorScheme, offsetX, offsetY}: Pro
     ];
     if (!label.noBorder) {
       const borderX = isLeft
-        ? node.x + offsetX + ZONE_HEIGHT
-        : node.x + offsetX + node.width - ZONE_HEIGHT;
+        ? node.x + offsetX + ZONE.height
+        : node.x + offsetX + node.width - ZONE.height;
       labelChildren.push(
         <Line
           key="border"

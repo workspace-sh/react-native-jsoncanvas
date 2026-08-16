@@ -6,14 +6,14 @@ import {
 import type {TextNode} from '../../core';
 import type {EnrichedTextNode} from '../extensions/cssclasses';
 import {hasCallouts, parseCallouts, getHeader, getFooter, getCenteredCallout} from '../extensions/callouts';
-import type {ColorScheme} from '../theme';
+import {getMutedTextColor, getTextColor, type ColorScheme} from '../theme';
+import {NODE, ZONE} from '../metrics';
+import {H4, type FontConfig} from '../typography';
 import {parseToSegments, toPlainText} from '../markdown';
 import {buildParagraph, getParagraphColours} from '../paragraphBuilder';
 import {shapeClipPath} from './shapes';
 
 const DEG_TO_RAD = Math.PI / 180;
-const ZONE_HEIGHT = 28;
-const ZONE_PADDING = 6;
 
 interface Props {
   node: TextNode;
@@ -22,17 +22,8 @@ interface Props {
   offsetY: number;
 }
 
-const PADDING = 12;
 
 // Font configs (kept for header/footer/label zone rendering)
-interface FontConfig {
-  fontSize: number;
-  lineHeight: number;
-  fontWeight?: 'bold' | 'normal';
-  fontFamily?: string;
-}
-
-const H4: FontConfig = {fontSize: 13, lineHeight: 18, fontWeight: 'bold'};
 
 const fontCache = new Map<string, ReturnType<typeof matchFont>>();
 function getFont(config: FontConfig) {
@@ -58,9 +49,8 @@ function getFont(config: FontConfig) {
  * monospace, blockquotes are indented and muted. Inline syntax is stripped.
  */
 export function SkiaTextRenderer({node, colorScheme, offsetX, offsetY}: Props) {
-  const isDark = colorScheme === 'dark';
-  const textColor = isDark ? '#E5E7EB' : '#1F2937';
-  const mutedColor = isDark ? '#9CA3AF' : '#6B7280';
+  const textColor = getTextColor(colorScheme);
+  const mutedColor = getMutedTextColor(colorScheme);
 
   // Use displayText (frontmatter stripped) if available, otherwise raw text
   const enriched = node as TextNode & Partial<EnrichedTextNode>;
@@ -90,14 +80,14 @@ export function SkiaTextRenderer({node, colorScheme, offsetX, offsetY}: Props) {
   const centered = useMemo(() => getCenteredCallout(callouts), [callouts]);
 
   // Adjust available height for header/footer zones
-  const headerSpace = header ? ZONE_HEIGHT : 0;
-  const footerSpace = footer ? ZONE_HEIGHT : 0;
+  const headerSpace = header ? ZONE.height : 0;
+  const footerSpace = footer ? ZONE.height : 0;
 
   const textContent = centered ? centered.text : bodyText;
-  const baseX = node.x + offsetX + PADDING;
-  const maxWidth = node.width - PADDING * 2;
-  const bodyAreaHeight = node.height - PADDING * 2 - headerSpace - footerSpace;
-  const bodyYStart = node.y + offsetY + PADDING + headerSpace;
+  const baseX = node.x + offsetX + NODE.padding;
+  const maxWidth = node.width - NODE.padding * 2;
+  const bodyAreaHeight = node.height - NODE.padding * 2 - headerSpace - footerSpace;
+  const bodyYStart = node.y + offsetY + NODE.padding + headerSpace;
 
   // Build Skia Paragraph for body text — handles word wrapping, mixed
   // styles, line breaking, bold, italic, code, strikethrough natively.
@@ -130,7 +120,7 @@ export function SkiaTextRenderer({node, colorScheme, offsetX, offsetY}: Props) {
   // Header zone
   if (header) {
     const headerFont = getFont(H4);
-    const headerY = node.y + offsetY + ZONE_PADDING + H4.fontSize;
+    const headerY = node.y + offsetY + ZONE.padding + H4.fontSize;
     const headerText = toPlainText(header.text);
     if (headerText) {
       const headerTextWidth = headerFont.measureText(headerText).width;
@@ -147,7 +137,7 @@ export function SkiaTextRenderer({node, colorScheme, offsetX, offsetY}: Props) {
       );
     }
     if (!header.noBorder) {
-      const lineY = node.y + offsetY + ZONE_HEIGHT;
+      const lineY = node.y + offsetY + ZONE.height;
       elements.push(
         <Line
           key="header-line"
@@ -164,7 +154,7 @@ export function SkiaTextRenderer({node, colorScheme, offsetX, offsetY}: Props) {
   if (footer) {
     const footerFont = getFont(H4);
     const footerBaseY = node.y + offsetY + node.height - footerSpace;
-    const footerTextY = footerBaseY + ZONE_PADDING + H4.fontSize;
+    const footerTextY = footerBaseY + ZONE.padding + H4.fontSize;
     const footerText = toPlainText(footer.text);
     if (footerText) {
       const footerTextWidth = footerFont.measureText(footerText).width;

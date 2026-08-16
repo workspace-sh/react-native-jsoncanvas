@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
-import {View, Text, Platform, useColorScheme, useWindowDimensions, type LayoutChangeEvent} from 'react-native';
+import {View, Text, Platform, StyleSheet, useColorScheme, useWindowDimensions, type LayoutChangeEvent} from 'react-native';
 import {GestureDetector, Gesture} from 'react-native-gesture-handler';
 import {useSharedValue, withDecay, cancelAnimation, type SharedValue} from 'react-native-reanimated';
 import {scheduleOnRN} from 'react-native-worklets';
@@ -915,8 +915,8 @@ export function CanvasView({content, basePath, renderMarkdown, initialViewState,
 
   if (!canvasState) {
     return (
-      <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>
-        <Text style={{color: getMutedTextColor(colorScheme), fontSize: 14}}>
+      <View style={styles.placeholder}>
+        <Text style={[styles.placeholderText, {color: getMutedTextColor(colorScheme)}]}>
           Unable to load canvas
         </Text>
       </View>
@@ -926,7 +926,7 @@ export function CanvasView({content, basePath, renderMarkdown, initialViewState,
   return (
     <CanvasProvider value={contextValue}>
       <GestureDetector gesture={gesture}>
-        <View ref={canvasViewRef} style={{flex: 1, overflow: 'hidden'}} onLayout={onLayout} collapsable={false}>
+        <View ref={canvasViewRef} style={styles.root} onLayout={onLayout} collapsable={false}>
           <SkiaCanvasLayer
             allNodes={visibleNodes}
             edges={visibleEdges}
@@ -960,3 +960,12 @@ export function CanvasView({content, basePath, renderMarkdown, initialViewState,
     </CanvasProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  /** Canvas viewport. `overflow: hidden` keeps content from painting over
+   *  host chrome when the camera pans past the pane's edge. */
+  root: {flex: 1, overflow: 'hidden'},
+  /** Shown in place of the canvas when the document fails to parse. */
+  placeholder: {flex: 1, justifyContent: 'center', alignItems: 'center'},
+  placeholderText: {fontSize: 14},
+});
