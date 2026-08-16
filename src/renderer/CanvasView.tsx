@@ -14,6 +14,8 @@ import {CanvasMinimap, type MinimapPosition} from './CanvasMinimap';
 import {
   jsonCanvasGestureEvents,
   scrollWheelEvents,
+  setHoverTracking,
+  type MouseMovedEvent,
   type ScrollWheelEvent,
   type SmartMagnifyEvent,
 } from './NativeScrollWheelView';
@@ -167,11 +169,17 @@ export function CanvasView({content, basePath, renderMarkdown, initialViewState,
     );
     // `measureInWindow` resolves async on the next layout pass. Storing
     // into a ref (not state) so it doesn't trigger a re-render — only the
-    // smartMagnify listener reads it, at event-fire time.
+    // smartMagnify and mouseMoved listeners read it, at event-fire time.
     canvasViewRef.current?.measureInWindow((x, y, w, h) => {
       canvasOriginRef.current = {x, y, width: w, height: h};
     });
   }, []);
+
+  // Image file node under the pointer, or null (macOS hover — #49). The ref
+  // shadows the state so the high-frequency `onMouseMoved` listener can
+  // compare against the current value without re-subscribing on every change.
+  const [hoveredFileNodeId, setHoveredFileNodeId] = useState<string | null>(null);
+  const hoveredFileNodeIdRef = useRef<string | null>(null);
 
   const colorScheme = resolveScheme(useColorScheme());
   const translateX = useSharedValue(0);
@@ -643,6 +651,81 @@ export function CanvasView({content, basePath, renderMarkdown, initialViewState,
     return () => sub.remove();
   }, [translateX, translateY, scale, handleDoubleTap, leftOverlayWidth]);
 
+  // macOS hover — reveals an image file node's filename (#49).
+  //
+  // Coordinates arrive on the same contract as `onSmartMagnify` from the
+  // library bridge (window-global, top-left origin), so this runs the exact
+  // same normalisation: subtract the canvas origin, reject the left-overlay
+  // zone, then convert to world coords. Only the library bridge emits
+  // `onMouseMoved` — a consumer `ScrollWheelBridge` has no equivalent — so
+  // there's no source-preference dance here, unlike the two effects above.
+  //
+  // The native side throttles to ~30Hz with a 2pt movement threshold; this
+  // side narrows further to state changes only, so a pointer wandering
+  // within one node (or across empty canvas) causes no re-render at all.
+  //
+  // Split in two deliberately. Enabling the native stream is a *mount*
+  // concern — it flips `acceptsMouseMovedEvents` on the host's windows — so
+  // it must not ride along with the listener's dependencies, or every change
+  // of canvas document would switch the pointer stream off and back on again.
+  useEffect(() => {
+    if (!jsonCanvasGestureEvents) return;
+    setHoverTracking(true);
+    return () => {
+      setHoverTracking(false);
+      hoveredFileNodeIdRef.current = null;
+      setHoveredFileNodeId(null);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!jsonCanvasGestureEvents) return;
+    const sub = jsonCanvasGestureEvents.addListener(
+      'onMouseMoved',
+      (event: MouseMovedEvent) => {
+        // Mid-pinch the camera is mutating on the UI thread while the Picture
+        // overlay stands in for the live tree — a hover chip would be both
+        // stale and invisible. Drop out and let the pointer's next resting
+        // position re-resolve it.
+        if (isPinching.value) {
+          if (hoveredFileNodeIdRef.current !== null) {
+            hoveredFileNodeIdRef.current = null;
+            setHoveredFileNodeId(null);
+          }
+          return;
+        }
+
+        const origin = canvasOriginRef.current;
+        const localX = event.x - origin.x;
+        const localY = event.y - origin.y;
+
+        let hitId: string | null = null;
+        const overlayLeft = leftOverlayWidth?.value ?? 0;
+        const insideCanvas =
+          localX >= overlayLeft && localY >= 0 &&
+          localX <= origin.width && localY <= origin.height;
+
+        if (insideCanvas) {
+          const wx = (localX - translateX.value) / scale.value;
+          const wy = (localY - translateY.value) / scale.value;
+          // Smallest-area-wins, matching `handleDoubleTap` — the pointer over
+          // a file node nested in a group means the file node.
+          const hits = (canvasState?.hitTest(wx, wy) ?? []).filter(n => n.type === 'file');
+          if (hits.length > 0) {
+            hitId = hits.reduce((a, b) =>
+              (a.width * a.height < b.width * b.height ? a : b)).id;
+          }
+        }
+
+        if (hitId !== hoveredFileNodeIdRef.current) {
+          hoveredFileNodeIdRef.current = hitId;
+          setHoveredFileNodeId(hitId);
+        }
+      },
+    );
+    return () => sub.remove();
+  }, [canvasState, translateX, translateY, scale, isPinching, leftOverlayWidth]);
+
   // Click-and-drag to pan
   const panGesture = useMemo(
     () =>
@@ -855,6 +938,7 @@ export function CanvasView({content, basePath, renderMarkdown, initialViewState,
             basePath={basePath}
             isPinching={isPinching}
             isCameraAnimating={isCameraAnimating}
+            hoveredFileNodeId={hoveredFileNodeId}
           />
           {minimap !== 'hidden' && allNodes.length > 0 && (
             <CanvasMinimap
