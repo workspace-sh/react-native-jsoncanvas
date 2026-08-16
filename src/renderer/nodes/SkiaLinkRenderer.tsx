@@ -1,7 +1,9 @@
 import React from 'react';
 import {Text, matchFont} from '@shopify/react-native-skia';
 import type {LinkNode} from '../../core';
-import type {ColorScheme} from '../theme';
+import {getLinkColor, getMutedTextColor, type ColorScheme} from '../theme';
+import {LINK, NODE} from '../metrics';
+import {FONT_SIZE} from '../typography';
 
 interface Props {
   node: LinkNode;
@@ -10,18 +12,17 @@ interface Props {
   offsetY: number;
 }
 
-const PADDING = 12;
 
 let _hostnameFont: ReturnType<typeof matchFont> | null = null;
 let _urlFont: ReturnType<typeof matchFont> | null = null;
 
 function getHostnameFont() {
-  if (!_hostnameFont) _hostnameFont = matchFont({fontFamily: 'System', fontSize: 16, fontWeight: 'bold'});
+  if (!_hostnameFont) _hostnameFont = matchFont({fontFamily: 'System', fontSize: FONT_SIZE.linkHostname, fontWeight: 'bold'});
   return _hostnameFont;
 }
 
 function getUrlFont() {
-  if (!_urlFont) _urlFont = matchFont({fontFamily: 'System', fontSize: 11});
+  if (!_urlFont) _urlFont = matchFont({fontFamily: 'System', fontSize: FONT_SIZE.linkUrl});
   return _urlFont;
 }
 
@@ -35,14 +36,13 @@ export function SkiaLinkRenderer({node, colorScheme, offsetX, offsetY}: Props) {
   const urlFont = getUrlFont();
   if (!hostnameFont || !urlFont) return null;
 
-  const isDark = colorScheme === 'dark';
-  const linkColor = isDark ? '#60A5FA' : '#2563EB';
-  const mutedColor = isDark ? '#9CA3AF' : '#6B7280';
+  const linkColor = getLinkColor(colorScheme);
+  const mutedColor = getMutedTextColor(colorScheme);
   const hostname = extractHostname(node.url);
 
-  const x = node.x + offsetX + PADDING;
-  const urlBarY = node.y + offsetY + PADDING + 11;
-  const hostnameY = node.y + offsetY + PADDING + 40;
+  const x = node.x + offsetX + NODE.padding;
+  const urlBarY = node.y + offsetY + NODE.padding + LINK.urlBarOffset;
+  const hostnameY = node.y + offsetY + NODE.padding + LINK.hostnameOffset;
   const urlY = hostnameY + 24;
 
   return (

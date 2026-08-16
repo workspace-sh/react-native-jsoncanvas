@@ -34,17 +34,14 @@ export function CanvasNodeView({node, colorScheme}: Props) {
       pointerEvents="none"
       style={[
         isGroup ? styles.groupNode : styles.node,
+        // Per-node geometry and palette — the only genuinely dynamic part.
         {
-          position: 'absolute',
           left: node.x,
           top: node.y,
           width: node.width,
           height: node.height,
           backgroundColor: isGroup ? colors.background : colors.card,
           borderColor: colors.border,
-          borderWidth: isGroup ? 1 : 1,
-          borderStyle: isGroup ? 'dashed' : 'solid',
-          borderRadius: isGroup ? 12 : 8,
         },
       ]}>
       {renderNodeContent(node, colorScheme)}
@@ -52,11 +49,23 @@ export function CanvasNodeView({node, colorScheme}: Props) {
   );
 }
 
+// Everything that varies only by node *kind* rather than by node — the
+// previous inline object recomputed these on every render and re-derived
+// `isGroup ? 1 : 1` for the border width, which was never a choice.
 const styles = StyleSheet.create({
   node: {
+    position: 'absolute',
     overflow: 'hidden',
+    borderWidth: 1,
+    borderStyle: 'solid',
+    borderRadius: 8,
   },
   groupNode: {
+    position: 'absolute',
+    // Groups let children paint outside the bounds; nodes clip to them.
     overflow: 'visible',
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderRadius: 12,
   },
 });

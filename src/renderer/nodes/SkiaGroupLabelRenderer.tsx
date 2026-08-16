@@ -2,6 +2,8 @@ import React from 'react';
 import {Text, RoundedRect, matchFont} from '@shopify/react-native-skia';
 import type {GroupNode} from '../../core';
 import {getNodeColors, type ColorScheme} from '../theme';
+import {GROUP_LABEL} from '../metrics';
+import {FONT_SIZE} from '../typography';
 
 interface Props {
   node: GroupNode;
@@ -10,13 +12,10 @@ interface Props {
   offsetY: number;
 }
 
-const FONT_SIZE = 13;
-const PADDING_X = 10;
-const PADDING_Y = 4;
 
 let _font: ReturnType<typeof matchFont> | null = null;
 function getFont() {
-  if (!_font) _font = matchFont({fontFamily: 'System', fontSize: FONT_SIZE, fontWeight: 'bold'});
+  if (!_font) _font = matchFont({fontFamily: 'System', fontSize: FONT_SIZE.groupLabel, fontWeight: 'bold'});
   return _font;
 }
 
@@ -30,8 +29,8 @@ export function SkiaGroupLabelRenderer({node, colorScheme, offsetX, offsetY}: Pr
 
   const colors = getNodeColors(node.color, colorScheme);
   const textWidth = font.measureText(node.label).width;
-  const pillWidth = textWidth + PADDING_X * 2;
-  const pillHeight = FONT_SIZE + PADDING_Y * 2;
+  const pillWidth = textWidth + GROUP_LABEL.paddingX * 2;
+  const pillHeight = FONT_SIZE.groupLabel + GROUP_LABEL.paddingY * 2;
 
   const x = node.x + offsetX;
   const y = node.y + offsetY - pillHeight - 8;
@@ -47,8 +46,8 @@ export function SkiaGroupLabelRenderer({node, colorScheme, offsetX, offsetY}: Pr
         color={colors.active}
       />
       <Text
-        x={x + PADDING_X}
-        y={y + PADDING_Y + FONT_SIZE}
+        x={x + GROUP_LABEL.paddingX}
+        y={y + GROUP_LABEL.paddingY + FONT_SIZE.groupLabel}
         text={node.label}
         font={font}
         color={colors.text}
