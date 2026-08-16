@@ -1,7 +1,8 @@
 import React from 'react';
 import {Text, RoundedRect, matchFont} from '@shopify/react-native-skia';
 import type {FileNode} from '../../core';
-import type {ColorScheme} from '../theme';
+import {getChipBackground, getMutedTextColor, getTextColor, type ColorScheme} from '../theme';
+import {CHIP} from '../metrics';
 
 interface Props {
   node: FileNode;
@@ -30,13 +31,6 @@ function getSubpathFont() {
 
 const IMAGE_RE = /\.(png|jpg|jpeg|gif|svg|webp|bmp|ico)$/i;
 
-// Chip geometry, in world units (scaled with the camera like every other
-// node-space measurement).
-const CHIP_PAD_X = 6;
-const CHIP_PAD_Y = 4;
-const CHIP_RADIUS = 4;
-const CHIP_GAP = 6; // between the node's bottom edge and the chip
-
 /**
  * File-node labels.
  *
@@ -59,9 +53,8 @@ export function SkiaFileRenderer({node, colorScheme, offsetX, offsetY, revealed 
   const subpathFont = getSubpathFont();
   if (!nameFont) return null;
 
-  const isDark = colorScheme === 'dark';
-  const textColor = isDark ? '#E5E7EB' : '#1F2937';
-  const mutedColor = isDark ? '#9CA3AF' : '#6B7280';
+  const textColor = getTextColor(colorScheme);
+  const mutedColor = getMutedTextColor(colorScheme);
   const fileName = node.file.split('/').pop() ?? node.file;
   const isImage = IMAGE_RE.test(node.file);
 
@@ -73,21 +66,21 @@ export function SkiaFileRenderer({node, colorScheme, offsetX, offsetY, revealed 
 
     // Below the node rather than over it — the image is the content, and a
     // chip laid across it would obscure the very thing being identified.
-    const chipTextY = node.y + offsetY + node.height + CHIP_GAP + nameFont.getSize();
+    const chipTextY = node.y + offsetY + node.height + CHIP.gap + nameFont.getSize();
     const subWidth = node.subpath ? subpathFont?.measureText(node.subpath).width ?? 0 : 0;
-    const chipWidth = Math.max(nameWidth, subWidth) + CHIP_PAD_X * 2;
+    const chipWidth = Math.max(nameWidth, subWidth) + CHIP.paddingX * 2;
     const chipHeight =
-      nameFont.getSize() + (node.subpath ? 14 : 0) + CHIP_PAD_Y * 2;
+      nameFont.getSize() + (node.subpath ? CHIP.subpathLineHeight : 0) + CHIP.paddingY * 2;
 
     return (
       <>
         <RoundedRect
           x={labelX - chipWidth / 2}
-          y={chipTextY - nameFont.getSize() - CHIP_PAD_Y}
+          y={chipTextY - nameFont.getSize() - CHIP.paddingY}
           width={chipWidth}
           height={chipHeight}
-          r={CHIP_RADIUS}
-          color={isDark ? 'rgba(28, 28, 30, 0.92)' : 'rgba(255, 255, 255, 0.94)'}
+          r={CHIP.radius}
+          color={getChipBackground(colorScheme)}
         />
         <Text
           x={labelX - nameWidth / 2}
@@ -99,7 +92,7 @@ export function SkiaFileRenderer({node, colorScheme, offsetX, offsetY, revealed 
         {node.subpath && subpathFont && (
           <Text
             x={labelX - subWidth / 2}
-            y={chipTextY + 14}
+            y={chipTextY + CHIP.subpathLineHeight}
             text={node.subpath}
             font={subpathFont}
             color={mutedColor}

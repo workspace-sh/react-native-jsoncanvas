@@ -663,9 +663,23 @@ export function CanvasView({content, basePath, renderMarkdown, initialViewState,
   // The native side throttles to ~30Hz with a 2pt movement threshold; this
   // side narrows further to state changes only, so a pointer wandering
   // within one node (or across empty canvas) causes no re-render at all.
+  //
+  // Split in two deliberately. Enabling the native stream is a *mount*
+  // concern — it flips `acceptsMouseMovedEvents` on the host's windows — so
+  // it must not ride along with the listener's dependencies, or every change
+  // of canvas document would switch the pointer stream off and back on again.
   useEffect(() => {
     if (!jsonCanvasGestureEvents) return;
     setHoverTracking(true);
+    return () => {
+      setHoverTracking(false);
+      hoveredFileNodeIdRef.current = null;
+      setHoveredFileNodeId(null);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!jsonCanvasGestureEvents) return;
     const sub = jsonCanvasGestureEvents.addListener(
       'onMouseMoved',
       (event: MouseMovedEvent) => {
@@ -709,12 +723,7 @@ export function CanvasView({content, basePath, renderMarkdown, initialViewState,
         }
       },
     );
-    return () => {
-      sub.remove();
-      setHoverTracking(false);
-      hoveredFileNodeIdRef.current = null;
-      setHoveredFileNodeId(null);
-    };
+    return () => sub.remove();
   }, [canvasState, translateX, translateY, scale, isPinching, leftOverlayWidth]);
 
   // Click-and-drag to pan

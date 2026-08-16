@@ -4,7 +4,8 @@ import type {SkPicture, SkCanvas, SkFont, SkPaint, SkImage} from '@shopify/react
 import type {CanvasNode, CanvasEdge, TextNode, LinkNode, FileNode, GroupNode, EdgeSide} from '../core';
 import type {EnrichedTextNode} from './extensions/cssclasses';
 import {hasCallouts, parseCallouts, getHeader, getFooter, getLabels, getCenteredCallout} from './extensions/callouts';
-import {getNodeColors, type ColorScheme} from './theme';
+import {getNodeColors, getMutedTextColor, getTextColor, type ColorScheme} from './theme';
+import {CHIP} from './metrics';
 import {parseToSegments, toPlainText} from './markdown';
 import {buildParagraph, getParagraphColours} from './paragraphBuilder';
 import {resolveFileUri} from './utils/resolveFileUri';
@@ -665,9 +666,8 @@ function drawFileLabel(canvas: SkCanvas, node: FileNode, colorScheme: ColorSchem
   // Mirrors the early return in `SkiaFileRenderer`; the two paths must agree.
   if (IMAGE_RE.test(node.file)) return;
 
-  const isDark = colorScheme === 'dark';
-  const textColor = isDark ? '#E5E7EB' : '#1F2937';
-  const mutedColor = isDark ? '#9CA3AF' : '#6B7280';
+  const textColor = getTextColor(colorScheme);
+  const mutedColor = getMutedTextColor(colorScheme);
   const fileName = node.file.split('/').pop() ?? node.file;
 
   const labelY = node.y + node.height / 2 + 4;
@@ -680,7 +680,13 @@ function drawFileLabel(canvas: SkCanvas, node: FileNode, colorScheme: ColorSchem
   if (node.subpath) {
     const subFont = getFileSubpathFont();
     const subWidth = subFont.measureText(node.subpath).width;
-    canvas.drawText(node.subpath, labelX - subWidth / 2, labelY + 14, useTextPaint(mutedColor), subFont);
+    canvas.drawText(
+      node.subpath,
+      labelX - subWidth / 2,
+      labelY + CHIP.subpathLineHeight,
+      useTextPaint(mutedColor),
+      subFont,
+    );
   }
 }
 
