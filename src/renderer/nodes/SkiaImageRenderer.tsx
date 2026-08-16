@@ -4,6 +4,8 @@ import type {FileNode} from '../../core';
 import {devFlags} from '../devFlags';
 import {resolveFileUri} from '../utils/resolveFileUri';
 import {useValidatedSvg, getBrokenImageSvg, type ValidatedSvg} from '../utils/useValidatedSvg';
+import {hasInlineLabel} from '../utils/fileNodeLabel';
+import {FILE_IMAGE} from '../metrics';
 
 interface Props {
   node: FileNode;
@@ -15,16 +17,21 @@ interface Props {
 
 const IMAGE_RE = /\.(png|jpg|jpeg|gif|webp|bmp|ico)$/i;
 const SVG_RE = /\.svg$/i;
-const MARGIN = 8;
-const LABEL_SPACE = 28;
 
 /** Compute the destination box (inside the file node's bounds, padded for the
- *  filename label) into which the image content is fit. */
+ *  filename label where one is drawn) into which the image content is fit.
+ *
+ *  The label reservation is conditional: on platforms that reveal filenames
+ *  on demand rather than inline, subtracting it would push the image up the
+ *  card to clear space nothing occupies. `drawFileImage` in `useCanvasPicture`
+ *  computes the same box — they must agree or the Picture overlay places the
+ *  image somewhere the live tree doesn't. */
 function destBox(node: FileNode, offsetX: number, offsetY: number) {
-  const x = node.x + offsetX + MARGIN;
-  const y = node.y + offsetY + MARGIN;
-  const w = Math.max(0, node.width - MARGIN * 2);
-  const h = Math.max(0, node.height - MARGIN * 2 - LABEL_SPACE);
+  const labelSpace = hasInlineLabel(node) ? FILE_IMAGE.labelSpace : 0;
+  const x = node.x + offsetX + FILE_IMAGE.margin;
+  const y = node.y + offsetY + FILE_IMAGE.margin;
+  const w = Math.max(0, node.width - FILE_IMAGE.margin * 2);
+  const h = Math.max(0, node.height - FILE_IMAGE.margin * 2 - labelSpace);
   return {x, y, w, h};
 }
 

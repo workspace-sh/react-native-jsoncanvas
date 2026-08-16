@@ -33,6 +33,23 @@ export interface SmartMagnifyEvent {
   y: number;
 }
 
+/**
+ * macOS pointer position, for hover-reveal.
+ *
+ * Emitted by the library bridge only (`jsonCanvasGestureEvents`) — the
+ * consumer `ScrollWheelBridge` escape hatch has no equivalent — so `x` / `y`
+ * are always top-left-origin **window** coordinates, the same contract as
+ * {@link SmartMagnifyEvent} from that source. Subscribers convert to
+ * canvas-local before world-coord conversion.
+ *
+ * Throttled natively to ~30Hz with a 2pt movement threshold. Only delivered
+ * while {@link setHoverTracking} is enabled.
+ */
+export interface MouseMovedEvent {
+  x: number;
+  y: number;
+}
+
 // Consumer-provided scroll-wheel bridge. Optional escape hatch for apps
 // that already ship their own `ScrollWheelBridge` native module (Workspace
 // does — it scopes scroll to a specific NSView rather than window-global).
@@ -70,3 +87,15 @@ const JsonCanvasGestureModule =
 export const jsonCanvasGestureEvents = JsonCanvasGestureModule
   ? new NativeEventEmitter(JsonCanvasGestureModule)
   : null;
+
+/**
+ * Start / stop `onMouseMoved` delivery. No-op off macOS.
+ *
+ * Kept out of the emitter's own listener lifecycle deliberately: unlike
+ * scroll-wheel and smart-magnify, which fire only on deliberate gestures,
+ * mouse-moved fires continuously while the pointer travels. Consumers that
+ * don't reveal anything on hover shouldn't pay for the traffic.
+ */
+export function setHoverTracking(enabled: boolean): void {
+  JsonCanvasGestureModule?.setHoverTracking(enabled);
+}

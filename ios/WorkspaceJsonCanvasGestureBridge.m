@@ -14,6 +14,10 @@
 
 @interface RCT_EXTERN_MODULE(WorkspaceJsonCanvasGesture, RCTEventEmitter)
 
+// Hover (`onMouseMoved`) is opt-in — see `setHoverTracking` in the Swift
+// class for why it isn't tied to the emitter's listener lifecycle.
+RCT_EXTERN_METHOD(setHoverTracking:(BOOL)enabled)
+
 @end
 
 #endif

@@ -115,6 +115,29 @@ export function getMutedTextColor(scheme: ColorScheme): string {
   return scheme === 'dark' ? '#9CA3AF' : '#6B7280';
 }
 
+/**
+ * Primary text colour for the given scheme.
+ *
+ * Same values as `getNodeColors().text`, exposed on its own for text drawn
+ * outside a node's palette — labels and chips, which have no canvas colour
+ * of their own to derive from.
+ */
+export function getTextColor(scheme: ColorScheme): string {
+  return scheme === 'dark' ? '#E5E7EB' : '#1F2937';
+}
+
+/**
+ * Backing for small floating surfaces drawn over canvas content — currently
+ * the file-node hover chip.
+ *
+ * Near-opaque rather than flat: a filename has to stay legible over whatever
+ * artwork sits behind it, but the surface should still read as sitting *above*
+ * the canvas rather than punched out of it.
+ */
+export function getChipBackground(scheme: ColorScheme): string {
+  return scheme === 'dark' ? '#1C1C1EEB' : '#FFFFFFF0';
+}
+
 /** Resolve a colorScheme from React Native's useColorScheme(). */
 export function resolveScheme(scheme: ColorSchemeName): ColorScheme {
   return scheme === 'light' ? 'light' : 'dark';

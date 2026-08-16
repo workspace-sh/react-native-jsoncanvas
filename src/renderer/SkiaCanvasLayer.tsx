@@ -41,6 +41,14 @@ interface SkiaCanvasLayerProps {
   // reveal the pre-recorded Picture overlay so the live Skia tree
   // doesn't re-paint at every animated scale (#35).
   isCameraAnimating: SharedValue<boolean>;
+  /**
+   * Image file node the pointer is currently over (macOS hover), or null.
+   * Reveals that node's filename chip — see `SkiaFileRenderer`. Plain React
+   * state rather than a SharedValue: it changes at node-crossing rate, not
+   * frame rate, and the chip is Skia-declarative content that has to
+   * reconcile anyway.
+   */
+  hoveredFileNodeId?: string | null;
 }
 
 function useCameraMatrix(camera: CameraValues) {
@@ -70,6 +78,7 @@ export function SkiaCanvasLayer({
   basePath,
   isPinching,
   isCameraAnimating,
+  hoveredFileNodeId = null,
 }: SkiaCanvasLayerProps) {
   const matrix = useCameraMatrix(camera);
 
@@ -145,6 +154,11 @@ export function SkiaCanvasLayer({
     [fileNodes],
   );
 
+  const hoveredFileNode = useMemo(
+    () => (hoveredFileNodeId ? fileNodes.find(n => n.id === hoveredFileNodeId) ?? null : null),
+    [fileNodes, hoveredFileNodeId],
+  );
+
   return (
     <Canvas
       style={{
@@ -212,6 +226,10 @@ export function SkiaCanvasLayer({
             offsetY={0}
           />
         ))}
+        {/* Always-on labels for non-image file nodes. Image file nodes
+            no-op here and get their filename from the hover chip below,
+            drawn above every other layer so a neighbouring node can't
+            occlude it. */}
         {fileNodes.map(node => (
           <SkiaFileRenderer
             key={node.id}
@@ -255,6 +273,17 @@ export function SkiaCanvasLayer({
             basePath={basePath}
           />
         ))}
+        {/* --- Hover chip (topmost; live tree only, never recorded) --- */}
+        {hoveredFileNode && (
+          <SkiaFileRenderer
+            key={`hover-${hoveredFileNode.id}`}
+            node={hoveredFileNode}
+            colorScheme={colorScheme}
+            offsetX={0}
+            offsetY={0}
+            revealed
+          />
+        )}
       </Group>
     </Canvas>
   );
