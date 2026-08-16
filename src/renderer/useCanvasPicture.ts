@@ -658,15 +658,19 @@ function drawLinkNode(canvas: SkCanvas, node: LinkNode, colorScheme: ColorScheme
 }
 
 function drawFileLabel(canvas: SkCanvas, node: FileNode, colorScheme: ColorScheme) {
+  // Image file nodes carry no baked-in label any more — the filename is
+  // revealed on hover instead (#49), and hover lives only in the live Skia
+  // tree. Recording a chip here would freeze it into the pinch snapshot,
+  // showing a label that the live tree beneath has already dismissed.
+  // Mirrors the early return in `SkiaFileRenderer`; the two paths must agree.
+  if (IMAGE_RE.test(node.file)) return;
+
   const isDark = colorScheme === 'dark';
   const textColor = isDark ? '#E5E7EB' : '#1F2937';
   const mutedColor = isDark ? '#9CA3AF' : '#6B7280';
   const fileName = node.file.split('/').pop() ?? node.file;
-  const isImage = IMAGE_RE.test(node.file);
 
-  const labelY = isImage
-    ? node.y + node.height - 20
-    : node.y + node.height / 2 + 4;
+  const labelY = node.y + node.height / 2 + 4;
   const labelX = node.x + node.width / 2;
 
   const nameFont = getFileNameFont();
