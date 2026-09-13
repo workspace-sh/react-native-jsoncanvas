@@ -59,7 +59,12 @@ class WorkspaceJsonCanvasGesture: RCTEventEmitter {
   // consumer that never reveals anything on hover shouldn't pay for that.
   private var mouseMovedMonitor: Any?
   private var lastHoverEmit: TimeInterval = 0
-  private var lastHoverPoint = NSPoint(x: .greatestFiniteMagnitude, y: .greatestFiniteMagnitude)
+  // Explicit CGFloat: NSPoint's initialisers are overloaded, so a bare
+  // `.greatestFiniteMagnitude` is ambiguous and fails to compile.
+  private var lastHoverPoint = NSPoint(
+    x: CGFloat.greatestFiniteMagnitude,
+    y: CGFloat.greatestFiniteMagnitude
+  )
 
   // Windows whose `acceptsMouseMovedEvents` we flipped on, held weakly so a
   // closed window doesn't keep us alive or crash the restore path.
@@ -261,7 +266,10 @@ class WorkspaceJsonCanvasGesture: RCTEventEmitter {
     }
     flippedWindows.removeAllObjects()
     lastHoverEmit = 0
-    lastHoverPoint = NSPoint(x: .greatestFiniteMagnitude, y: .greatestFiniteMagnitude)
+    lastHoverPoint = NSPoint(
+      x: CGFloat.greatestFiniteMagnitude,
+      y: CGFloat.greatestFiniteMagnitude
+    )
   }
 
   private func removeMonitors() {
