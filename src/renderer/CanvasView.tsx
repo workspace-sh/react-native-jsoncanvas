@@ -9,6 +9,7 @@ import {
   type CanvasNode,
   type CanvasEdge,
 } from '../core';
+import {cameraActionForResize} from './keepCameraOnResize';
 import {SkiaCanvasLayer} from './SkiaCanvasLayer';
 import {CanvasMinimap, type MinimapPosition} from './CanvasMinimap';
 import {
@@ -547,6 +548,25 @@ export function CanvasView({content, basePath, renderMarkdown, initialViewState,
   const recenterRef = useRef(recenter);
   fitRef.current = fitToViewport;
   recenterRef.current = recenter;
+
+  // A fit or a recentre survives a resize.
+  //
+  // The camera is computed against the viewport, so a canvas that was fitted
+  // stops being fitted the moment the viewport changes: full screen, a window
+  // resize, a rotation. Whatever was last asked for is re-applied; after a pan,
+  // pinch or scroll the camera is the reader's and is left alone.
+  const lastSizeRef = useRef<{width: number; height: number} | null>(null);
+  useEffect(() => {
+    if (layoutSize === null) return;
+    const previous = lastSizeRef.current;
+    lastSizeRef.current = layoutSize;
+    const action = cameraActionForResize(previous, layoutSize, lastActionRef.current);
+    // A shared value, so it is read at the moment of re-applying rather than
+    // captured: the host mutates it as its sidebar moves, without re-rendering.
+    const inset = leftOverlayWidth?.value ?? 0;
+    if (action === 'fit') fitRef.current(inset);
+    if (action === 'recenter') recenterRef.current(inset);
+  }, [layoutSize, leftOverlayWidth]);
 
   useEffect(() => {
     onReady?.({
