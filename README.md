@@ -188,9 +188,8 @@ canvas. (The GTK renderer doesn't draw markdown yet; see [Linux](#linux-gtk4--li
 - Nested list items are dropped; only the top level of a list draws
 - Task-list items draw as plain bullets, without a checkbox
 
-> `CanvasView` still accepts a `renderMarkdown` prop, but **it is deprecated
-> and ignored**: text always draws through the Skia path described above. See
-> [#26](https://github.com/workspace-sh/react-native-jsoncanvas/issues/26).
+Closing the gap with a markdown document is tracked in
+[#88](https://github.com/workspace-sh/react-native-jsoncanvas/issues/88).
 
 ## Development
 
