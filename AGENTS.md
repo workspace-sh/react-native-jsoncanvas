@@ -72,7 +72,8 @@ If they diverge, the Picture overlay shows something different from the live tre
 - Text-node markdown goes through `unified` + `remark-parse` + `remark-gfm` + `remark-frontmatter` (`markdown/parseToSegments.ts`). HTML inside markdown goes through `hast-util-from-html`, cssclasses frontmatter through `js-yaml`, and callouts come from walking remark blockquote nodes (`extensions/callouts.ts`).
 - One preprocessing step on the source string remains: `normaliseEmphasis`, for Obsidian's newline-trailing-marker quirk (workspace#131).
 - Inline content walks `PhrasingContent[]`, and block content walks `Content[]`. A new node type has to be handled in both `walkInline` and `walkTree`.
-- A host can supply its own markdown component through the `renderMarkdown` prop; the renderer doesn't import one.
+- `CanvasView`'s `renderMarkdown` prop is deprecated and ignored (#26): nothing reads it, and text nodes always draw through Skia. Don't build on it.
+- The README's "Markdown in text nodes" section lists what draws and what is dropped. Keep it current when `parseToSegments.ts` changes.
 
 ### Known limitations
 

@@ -7,6 +7,7 @@ export type {
   FileNode,
   LinkNode,
   GroupNode,
+  GroupBackgroundStyle,
   CanvasNode,
   EdgeSide,
   EdgeEnd,
@@ -17,5 +18,10 @@ export type {
 
 export {parseCanvas, serializeCanvas} from './serialization';
 export {createSpatialIndex, type SpatialIndex} from './spatial-index';
-export {createCommandHistory, type CanvasCommandHistory, type Operation} from './operations';
+export {
+  createCommandHistory,
+  invertOperation,
+  type CanvasCommandHistory,
+  type Operation,
+} from './operations';
 export {createCanvasState, type CanvasState} from './canvas-state';
