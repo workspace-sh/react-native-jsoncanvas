@@ -1,4 +1,5 @@
 import {type ColorSchemeName} from 'react-native';
+import {COLOR_PRESETS} from '../core/colors';
 
 export type ColorScheme = 'light' | 'dark';
 
@@ -15,18 +16,6 @@ interface NodeColors {
   activeTransparent: string;
   text: string;
 }
-
-// HSL presets for each canvas colour code.
-// Values chosen to match the Obsidian/hesprs viewer aesthetic.
-const PRESETS: Record<string, [number, number, number]> = {
-  '0': [0, 0, 40],      // neutral gray (no colour set)
-  '1': [2, 78, 55],     // red
-  '2': [29, 90, 55],    // orange
-  '3': [48, 90, 55],    // yellow
-  '4': [142, 60, 45],   // green
-  '5': [204, 80, 55],   // cyan/blue
-  '6': [270, 60, 55],   // purple
-};
 
 function hslToRgb(h: number, s: number, l: number): [number, number, number] {
   s /= 100;
@@ -71,9 +60,9 @@ function hexToHsl(hex: string): [number, number, number] {
 }
 
 function resolveHsl(color?: string): [number, number, number] {
-  if (!color) return PRESETS['0'];
+  if (!color) return COLOR_PRESETS['0'];
   if (color.startsWith('#') && color.length >= 7) return hexToHsl(color);
-  return PRESETS[color] ?? PRESETS['0'];
+  return COLOR_PRESETS[color] ?? COLOR_PRESETS['0'];
 }
 
 /**
