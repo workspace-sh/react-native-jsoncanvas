@@ -8,6 +8,7 @@ export type {
   FileNode,
   LinkNode,
   GroupNode,
+  GroupBackgroundStyle,
   CanvasNode,
   EdgeSide,
   EdgeEnd,
