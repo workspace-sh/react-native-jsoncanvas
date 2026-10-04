@@ -1,178 +1,134 @@
-# Canvas Candy — full class catalogue
+# Canvas Candy: class catalogue
 
-Decomposing
+A gap analysis for
 [#19](https://github.com/workspace-sh/react-native-jsoncanvas/issues/19)
-("extend support to the full class catalogue") into a concrete gap
-analysis. Output: an enumeration of every class the upstream plugin
-defines, marked as **already supported** / **gap** / **deliberately
-skipped**, with feasibility notes so each gap can be picked up
-independently.
+("extend support to the full class catalogue"): every decoration the
+upstream plugin defines, marked **supported** or **gap**.
 
-This catalogue is **research output**, not an implementation plan. Each
-"gap" row maps to at most one sub-issue's worth of work — sub-issues
-get filed once you've signed off on which gaps are worth closing and
-which to leave skipped.
+This is research output, not an implementation plan. It covers the React
+Native renderer; the GTK renderer draws no Canvas Candy yet.
 
-## 1. Source
+## 1. Sources
 
 - Upstream plugin: [`TfTHacker/obsidian-canvas-candy`](https://github.com/TfTHacker/obsidian-canvas-candy)
-- Canonical class list: [`04 List of Decorations.md`](https://github.com/TfTHacker/obsidian-canvas-candy/blob/main/04%20List%20of%20Decorations.md)
-- Our baseline implementation: [`src/renderer/extensions/cssclasses.ts`](../src/renderer/extensions/cssclasses.ts)
-- Baseline conformance tests: [`src/renderer/extensions/__tests__/cssclasses.test.ts`](../src/renderer/extensions/__tests__/cssclasses.test.ts) (added in #29)
+- Its class list: [`04 List of Decorations.md`](https://github.com/TfTHacker/obsidian-canvas-candy/blob/main/04%20List%20of%20Decorations.md)
+- Its behaviour: [`.obsidian/snippets/canvas-candy.css`](https://github.com/TfTHacker/obsidian-canvas-candy/blob/main/.obsidian/snippets/canvas-candy.css).
+  Where the list and the CSS disagree, the CSS is what Obsidian does.
+- Ours: [`extensions/cssclasses.ts`](../src/renderer/extensions/cssclasses.ts)
+  and [`extensions/callouts.ts`](../src/renderer/extensions/callouts.ts),
+  with conformance tests beside them in `extensions/__tests__/`.
 
-Methodology: enumerate every class upstream documents, mark match
-status against our `mapClasses` switch + parametric regex. A class is
-"already supported" if our enrichment produces a `RenderProps` field
-for it. "Gap" means upstream defines it; we don't recognise it. "Skip"
-means upstream defines it but we deliberately don't intend to port.
+Upstream has **two mechanisms**, and its list is split the same way:
+
+- **cssclasses decorations** go in a card's YAML frontmatter
+  (`cssclasses: cc-shape-circle`). Ours: `cssclasses.ts`.
+- **callout decorations** are Obsidian callouts in the card's body
+  (`>[!cc-header] Title`). Ours: `callouts.ts`.
 
 ## 2. Status overview
 
-| Category | Upstream | Baseline (us) | Gap |
-|---|---|---|---|
-| Shapes | 3 + `cc-border-squared` overload | 3 + overload | 1 (alias) |
-| Card fill | 4 | 4 | 0 |
-| Card gradient | 8 (every 45°) | regex: any integer | 0 (we're more permissive) |
-| Borders | 11 | 11 | 0 |
-| Card rotation | 1 (`cc-rotate-card-45`) | regex: any integer | 0 (we're more permissive) |
-| Text rotation | 8 (multiples of 45°) + trailing `l` undocumented | regex: any integer + trailing `l` | 0 (we're more permissive) |
-| Text alignment | 1 (`cc-card-center`) | 2 (`cc-card-center` + `cc-callout-center`) | 0 |
-| Image handling | 2 | 0 | 2 |
-| Callout zone CSS classes | 9 | 0 (we expose zones via block syntax in `callouts.ts`) | 9 — deliberate skip candidates |
+| Category | Mechanism | Upstream | Supported | Gap |
+|---|---|---|---|---|
+| Shapes | cssclasses | 3 | 3 | 0 |
+| Card fill | cssclasses | 4 | 4 | 0 |
+| Card gradient | cssclasses | 8 (every 45°) | any integer | 0 |
+| Borders | cssclasses | 11 | 11 | 0 |
+| Card rotation | cssclasses | 1 (`cc-rotate-card-45`) | any integer | 0 |
+| Text rotation | cssclasses | 8 (every 45°) | any integer | 0 |
+| Text alignment | cssclasses | 1 (`cc-card-center`) | 1 | 0 |
+| Header, footer and label zones | callouts | 8 | 8 | 0 |
+| Centred callout | callouts | 1 | 1 | 0 |
+| Image callouts | callouts | 2 | 0 | **2** |
+| Stickers | file name | 1 convention | 0 | **1** |
 
-## 3. Already supported (no work needed)
+## 3. Supported
 
-### Shapes
-- `cc-shape-circle` ✓
-- `cc-shape-parallelogram-right` ✓
-- `cc-border-squared` ✓ (mapped to `shape: 'rectangle'` — promotes the default rounded-rect to square)
+### cssclasses
 
-### Card fill
-- `cc-card-fill` ✓
-- `cc-card-transparent` ✓
-- `cc-card-opaque` ✓
-- `cc-card-nocolor` ✓
+- Shapes: `cc-shape-circle`, `cc-shape-parallelogram-left`,
+  `cc-shape-parallelogram-right`
+- Card fill: `cc-card-fill`, `cc-card-transparent`, `cc-card-opaque`,
+  `cc-card-nocolor`
+- Borders: `cc-border-none`, `-dashed`, `-dotted`, `-double`, `-rounded`,
+  `-squared`, `-dropshadow`, and `-top`, `-bottom`, `-left`, `-right`
+  (additive)
+- Gradient: `cc-card-gradient-{N}deg`
+- Rotation: `cc-rotate-card-{N}`, `cc-rotate-text-{N}`
+- Alignment: `cc-card-center`
 
-### Borders
-- `cc-border-none` / `-dashed` / `-dotted` / `-double` ✓
-- `cc-border-rounded` ✓ (mapped to `pill: true`)
-- `cc-border-dropshadow` ✓
-- `cc-border-top` / `-bottom` / `-left` / `-right` ✓ (additive)
+A note on `cc-shape-parallelogram`: upstream's list names it, without a
+suffix, next to `cc-shape-parallelogram-right`. Its CSS defines only
+`.cc-shape-parallelogram-left` and `.cc-shape-parallelogram-right`, so the
+unsuffixed class does nothing in Obsidian either. The list entry is a typo
+for `-left`. Nothing to port.
 
-### Parametric (regex-matched, more permissive than upstream)
-- `cc-card-gradient-{N}deg` ✓ — upstream documents only multiples of 45° (0, 45, …, 315); our regex accepts any integer
-- `cc-rotate-card-{N}` ✓ — upstream documents only `cc-rotate-card-45`; our regex accepts any integer
-- `cc-rotate-text-{N}` ✓ — upstream documents 45 through 360 in 45° steps; our regex accepts any integer
-- `cc-rotate-text-{N}l` ✓ — trailing-`l` variant, NOT in upstream's documented list. Either ported from Workspace canvas-ui or an experimental variant. **Recommendation:** keep until someone documents it; harmless either way.
+### callouts
 
-### Text alignment
-- `cc-card-center` ✓
-- `cc-callout-center` ✓ (we treat the same as `cc-card-center`)
+- `>[!cc-header]`, `>[!cc-footer]`, `>[!cc-label-left]`,
+  `>[!cc-label-right]`, each with its `-noborder` variant
+- `>[!cc-callout-center]`
 
-## 4. Gaps — net new classes upstream has that we don't
+`callouts.ts` lifts each into a layout zone and removes the marker from the
+card body. `callouts.test.ts` asserts this against the demo cards from
+upstream's *Headers and Labels.canvas*.
 
-### 4a. `cc-shape-parallelogram` — alias, direct port (XS)
+### Where we accept more than upstream
 
-Upstream lists `cc-shape-parallelogram` alongside `cc-shape-parallelogram-right`, without a `-left` companion. Upstream's CSS likely defaults the un-suffixed form to one direction (probably left, matching our `cc-shape-parallelogram-left`).
+- Gradient, card rotation and text rotation match by regex, so any integer
+  works. Upstream's CSS defines only the angles its list names.
+- `cc-rotate-text-{N}l`, with a trailing `l`, is ours. Upstream has no such
+  class.
+- `cc-callout-center` is also accepted as a cssclass, where it behaves as
+  `cc-card-center`.
 
-**Feasibility:** direct port. One additional `case` in `mapClasses`:
+None of these needs work.
 
-```ts
-case 'cc-shape-parallelogram':
-case 'cc-shape-parallelogram-left':
-  props.shape = 'parallelogram-left';
-  break;
+## 4. Gaps
+
+### 4a. Image callouts: `cc-image-cover` and `cc-image-clip`
+
+Upstream:
+
+```md
+>[!cc-image-cover] ![[photo.png]]
 ```
 
-**Open question:** verify upstream's default direction matches our `-left`. If it doesn't, this is `parallelogram-right` and we should alias accordingly.
+Upstream calls this "use an image background": the image in the callout's
+title is laid behind the card's text, and the callout's own chrome is
+removed. (Upstream's *Features/Cards.canvas* files these two under
+cssclasses, but its CSS matches them only as callouts.) `cc-image-cover` sets
+`object-fit: cover`: the image fills the card, cropped to keep its aspect
+ratio. `cc-image-clip` sets `object-fit: clip`, which isn't a valid value,
+so browsers fall back to the default (`fill`): the image is stretched to
+the card.
 
-### 4b. `cc-image-cover` — direct port via existing primitive (S)
+Ours today: `callouts.ts` doesn't know either type, so the callout stays in
+the body, and the card shows the raw text
+`[!cc-image-cover] ![[photo.png]]`.
 
-Upstream effect: card / image fills its container area, cropping if needed.
+To close it, `callouts.ts` would recognise both types and carry the image
+reference, and both rendering paths (the live Skia tree and the Picture
+recording) would draw it as a card background. Group nodes already draw a
+background image with `cover` (`SkiaGroupBackgroundRenderer`); that is the
+nearest existing code.
 
-We already implement this for **group node backgrounds** via `GroupNode.backgroundStyle: 'cover'` (rendered by `SkiaGroupBackgroundRenderer`). The gap is **exposing the same behaviour through a CSS class on text / file nodes**.
+### 4b. Stickers: file names containing `-cc-image`
 
-**Feasibility:** direct port. Add to `RenderProps`:
+Upstream removes the border, background and label from an image file node
+whose file name contains `-cc-image`, so the image sits on the canvas as a
+sticker. It isn't in upstream's class list because it isn't a class; see
+*Features/Stickers.canvas*.
 
-```ts
-interface RenderProps {
-  …
-  imageCover?: boolean;
-}
-```
+Ours today: no special case. The image draws as an ordinary file node.
 
-Then in `mapClasses`: `case 'cc-image-cover': props.imageCover = true; break;`.
+## 5. Related, and separate
 
-Renderer consumes `renderProps.imageCover` when rendering file-node thumbnails or text-node embedded images — passes through to Skia's `<Image fit="cover">`.
+[#20](https://github.com/workspace-sh/react-native-jsoncanvas/issues/20)
+tracks a different mechanism: cssclasses in the frontmatter of a markdown
+*file* that a file node embeds. Nothing here covers it.
 
-**Effort:** ~10 lines in `cssclasses.ts`, ~10 lines in the file-node renderer, conformance tests in #29's `cssclasses.test.ts`.
+## 6. Open questions
 
-### 4c. `cc-image-clip` — new render primitive (M)
-
-Upstream effect: image clipped to the card's boundary (vs. overflowing). For a non-rectangular card (`cc-shape-circle`, parallelogram), the image follows the card's outline rather than spilling into a bounding rectangle.
-
-**Feasibility:** new render primitive. The current `SkiaImageRenderer` doesn't apply a card-shape clip path; it renders within a rect. To honour `cc-image-clip`, the renderer needs to:
-
-1. Compute the card's clip path from `props.shape` (using the same path-derivation logic as `SkiaCardRenderer`)
-2. Wrap the image in a Skia `<Group clip={path}>` matching the card shape
-
-The path computation already exists in `SkiaCardRenderer`; this is mostly plumbing.
-
-**Effort:** ~50 lines across `cssclasses.ts`, `SkiaImageRenderer.tsx`, and shared path-derivation helpers. Conformance test for the prop in `cssclasses.test.ts`; visual verification (manual, no automated test).
-
-## 5. Deliberate-skip candidates — callout zone CSS classes
-
-Upstream defines a parallel mechanism to our block-syntax callouts: CSS classes that style "zones" of a card.
-
-| Upstream class | Effect | Our equivalent |
-|---|---|---|
-| `cc-header` | Card header zone with border | `>[!header]` block syntax (in `extensions/callouts.ts`) |
-| `cc-header-noborder` | Same, no border | (not supported) |
-| `cc-footer` | Card footer zone with border | `>[!footer]` block syntax |
-| `cc-footer-noborder` | Same, no border | (not supported) |
-| `cc-label-left` | Left-side label with border | `>[!label-left]` block syntax |
-| `cc-label-left-noborder` | Same, no border | (not supported) |
-| `cc-label-right` | Right-side label with border | `>[!label-right]` block syntax |
-| `cc-label-right-noborder` | Same, no border | (not supported) |
-| `cc-callout-center` | Centred callout | We map this to `textAlign: 'center'` — partial overlap |
-
-**Recommendation: skip.** Two reasons:
-
-1. **Redundant with our block-syntax callouts.** Supporting two parallel mechanisms (CSS class via frontmatter AND block syntax in body) for the same visual effect doubles the maintenance surface and confuses consumers ("which one do I use?"). Our block-syntax approach was the chosen path for Workspace's canvas-ui and is the better long-term shape (zones are content concerns, not class concerns).
-2. **The `-noborder` variants would also need block-syntax equivalents**, expanding both surfaces.
-
-**Counter-argument:** if a user is importing a canvas authored against the upstream Candy CSS path, our renderer will silently ignore these classes. Their card looks "naked" relative to the original Obsidian view. **Mitigation:** document the mismatch in the README's "What's supported" section, or do a one-time conversion pass (`cc-header` → `>[!header]`) at import time.
-
-**Open question:** confirm skip, or do you want to support both mechanisms for compatibility-import use cases?
-
-## 6. Where we're more permissive than upstream (no work needed)
-
-- Gradient degrees: upstream documents 8 discrete values (every 45°). We accept any integer degree via regex. **No action.**
-- Card rotation: upstream documents only `cc-rotate-card-45`. We accept any integer. **No action.**
-- Text rotation: upstream documents 8 values (45° through 360° in 45° steps) plus an undocumented trailing `l` variant. We accept any integer + the trailing `l`. **No action.**
-
-These over-supports cost nothing — they're regex matches that would have failed silently anyway under upstream's strict list. If a consumer authors `cc-rotate-text-37`, we'll render it; the upstream plugin would skip it.
-
-## 7. Recommended sub-issue split
-
-Once you've signed off on this catalogue, file:
-
-1. **feat(candy): add `cc-shape-parallelogram` alias** — XS, ~5 lines
-2. **feat(candy): support `cc-image-cover` class for text / file nodes** — S, plumbing through to existing Skia image fit
-3. **feat(candy): support `cc-image-clip` (card-shape image clipping)** — M, new render primitive
-4. **docs(candy): document skipped callout-zone classes + recommend block-syntax migration** — XS, README addition
-
-Total: 3 feature issues + 1 docs issue. Not a single L issue's worth of work — closer to S total once split. Most of #19's original L sizing was the *research* this catalogue resolves.
-
-## 8. Open questions for you
-
-1. Do you confirm the **skip** decision on the 9 callout-zone CSS classes (`cc-header`, `cc-footer`, `cc-label-*` and their `-noborder` variants), or do you want both mechanisms supported for import compatibility?
-2. For `cc-shape-parallelogram` — verify the upstream default direction matches our `-left`, or do we need to alias to `-right`?
-3. Priority order for the three feature gaps — image-cover first (lowest effort, highest utility) or image-clip first (most visually impactful)?
-4. Should we file the four sub-issues now, or wait until at least one consumer asks for these classes?
-
-## 9. What this catalogue is NOT
-
-- **A migration guide for upstream Candy users.** That'd be a separate doc covering naming differences, what to expect, etc. Not in scope here.
-- **A spec.** We don't own Canvas Candy — it's an Obsidian plugin convention. If upstream evolves, we re-catalogue.
-- **Implementation.** No code in this PR. Sub-issues — if you sign off — produce code; this doc produces the plan.
+1. Are the two gaps worth closing now, or only once a canvas that uses them
+   turns up?
+2. If both: image callouts first, or stickers first?
