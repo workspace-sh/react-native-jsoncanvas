@@ -41,13 +41,14 @@ losing fidelity. That work is done. The API is now FFI-friendly.
 - Two FFI targets:
   - Native (iOS / Android / macOS) via a binding tool that emits Swift /
     Kotlin / C bindings consumable by React Native's native module system
-  - Web via wasm-bindgen
+  - Web via wasm-bindgen. The GTK renderer (`src/gtk/`, which runs on Node
+    through GTKX) would load the same wasm build
 - A thin TS facade in `src/core/` that consumers continue to import as today
   but which delegates to the Rust impl under the hood
 
 ### Out of scope
 
-- The renderer (`src/renderer/*`). Stays TS.
+- The renderers (`src/renderer/*` and `src/gtk/*`). Both stay TS.
 - Markdown parsing / `paragraphBuilder`. Stays TS — runs once per text node
   on render, not on the gesture path; cost is acceptable; rewriting the
   unified/remark ecosystem in Rust is its own multi-month effort.
@@ -114,10 +115,10 @@ anyway).
 The Rust impl must be byte-equivalent to the TS impl for every input.
 Strategy:
 
-1. **Same conformance tests run against both impls.** The 168 tests in
-   `src/core/__tests__/` and `src/renderer/extensions/__tests__/` are
-   the contract. PR #29 added the spec + Candy baseline coverage; that's
-   what the Rust impl has to satisfy.
+1. **Same conformance tests run against both impls.** The jest suites in
+   `src/core/__tests__/` are the contract, the JSON Canvas spec fixtures
+   among them; that's what the Rust impl has to satisfy. (The Canvas Candy
+   suites in `src/renderer/extensions/__tests__/` test code that stays TS.)
 2. **Test runner picks impl per test run.** Jest config flag chooses
    which impl is mounted at `parseCanvas` etc. CI matrix: `IMPL=ts` and
    `IMPL=rust` rows.
@@ -193,8 +194,8 @@ parallel.
     Hooks into prebuild, runs Cargo, places artifacts in Pods / jniLibs.
     Updates `example/expo-app` and the macOS harness to use it
 11. **test(rust): cross-impl conformance test runner** (S) —
-    Jest config that runs the existing 168 conformance tests against the
-    Rust impl. CI matrix entry
+    Jest config that runs the existing `src/core/__tests__/` suites against
+    the Rust impl. CI matrix entry
 12. **test(rust): property-based round-trip tests** (S) —
     Random canvas generation; round-trip identity property; runs in
     cargo test (Rust-side) and as part of the cross-impl matrix
