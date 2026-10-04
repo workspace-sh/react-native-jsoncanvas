@@ -2,7 +2,7 @@
 
 A React Native renderer for [JSON Canvas](https://jsoncanvas.org/) — the open file format for infinite-canvas notes, originally from Obsidian.
 
-Drop a `.canvas` file in and you get a panning, pinch-zooming canvas with text nodes (markdown), file nodes (images drawn, other files shown by name), grouped nodes, and connecting edges, drawn with Skia and Reanimated on iOS, macOS, and Android. The library exposes imperative controls for fit-to-viewport and recentre, plus an extension surface for community conventions like Obsidian cssclasses and callouts.
+Drop a `.canvas` file in and you get a panning, pinch-zooming canvas with text nodes (markdown), file nodes (images drawn, other files shown by name), grouped nodes, and connecting edges, drawn with Skia and Reanimated on iOS, macOS, and Android. The library exposes imperative controls for fit-to-viewport and recentre, plus built-in support for community conventions like Obsidian cssclasses and callouts.
 
 It also renders on Linux through [GTKX](https://gtkx.dev), React for GTK4 and libadwaita: the same document model, drawn with Cairo, as the `./gtk` entry point. See [Linux](#linux-gtk4--libadwaita-via-gtkx).
 
