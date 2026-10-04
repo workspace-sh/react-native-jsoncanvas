@@ -30,11 +30,14 @@ export interface LinkNode extends BaseNode {
   url: string;
 }
 
+/** How a group node's background image fits, per the JSON Canvas spec. */
+export type GroupBackgroundStyle = 'cover' | 'ratio' | 'repeat';
+
 export interface GroupNode extends BaseNode {
   type: 'group';
   label?: string;
   background?: string;
-  backgroundStyle?: 'cover' | 'ratio' | 'repeat';
+  backgroundStyle?: GroupBackgroundStyle;
 }
 
 export type CanvasNode = TextNode | FileNode | LinkNode | GroupNode;

@@ -8,6 +8,7 @@ export type {
   FileNode,
   LinkNode,
   GroupNode,
+  GroupBackgroundStyle,
   CanvasNode,
   EdgeSide,
   EdgeEnd,
@@ -22,7 +23,6 @@ export {
   createCommandHistory,
   invertOperation,
   type CanvasCommandHistory,
-  type GroupBackgroundStyle,
   type Operation,
 } from './core/operations';
 export {createCanvasState, type CanvasState} from './core/canvas-state';

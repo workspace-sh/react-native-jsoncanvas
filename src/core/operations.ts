@@ -1,7 +1,4 @@
-import type {CanvasNode, CanvasEdge, CanvasColor} from './types';
-
-/** Background fit modes for group-node images. Mirrors GroupNode.backgroundStyle. */
-export type GroupBackgroundStyle = 'cover' | 'ratio' | 'repeat';
+import type {CanvasNode, CanvasEdge, CanvasColor, GroupBackgroundStyle} from './types';
 
 export type Operation =
   | {type: 'addNode'; node: CanvasNode}

@@ -160,32 +160,35 @@ The library exposes three layers:
 
 The renderer is consumed through `CanvasView`. The core surface (`parseCanvas`, `createCanvasState`, etc.) is exported alongside if you need to inspect or mutate documents independently.
 
-### Markdown rendering
+### Markdown in text nodes
 
-Text-node bodies are parsed by `paragraphBuilder` (built on the unified /
-remark ecosystem) and rendered through Skia's text API — not as native React
-text components. Going through Skia is intentional: it bypasses a
-`react-native-macos` rendering limitation where native `Text` stops drawing
-beyond ~1500px from the parent view's origin, which would otherwise punch
-holes in any sufficiently large canvas.
+In the React Native renderer, text-node bodies are parsed with unified /
+remark (`markdown/parseToSegments.ts`) and drawn through Skia's paragraph
+API (`paragraphBuilder.ts`), not as native React text components. Going
+through Skia is intentional: it bypasses a `react-native-macos` rendering
+limitation where native `Text` stops drawing beyond ~1500px from the parent
+view's origin, which would otherwise punch holes in any sufficiently large
+canvas. (The GTK renderer doesn't draw markdown yet; see [Linux](#linux-gtk4--libadwaita-via-gtkx).)
 
-**Supported:**
+**Drawn:**
 
-- Inline marks: bold, italic, code spans, link text (rendered as styled runs,
-  not as tappable affordances)
-- Blocks: paragraphs, headings, lists (ordered / unordered / task), code
-  blocks, blockquotes, tables
-- GFM extensions: strikethrough, task list checkboxes
-- YAML frontmatter (parsed and stripped — used by the Canvas Candy extension
-  layer for `cssclasses`, not rendered as document content)
+- Inline: bold, italic, code spans, strikethrough, and link text (styled,
+  not tappable)
+- Blocks: paragraphs, headings, ordered and unordered lists, code blocks
+  (monospace, no syntax highlighting), blockquotes, and the text content of
+  HTML
+- YAML frontmatter is parsed and stripped: the Canvas Candy extension layer
+  reads its `cssclasses`, and it is not drawn as content
 
-**Not supported:** anything that requires a React component overlay (images
-embedded in markdown, syntax-highlighted code blocks, callouts beyond what
-the `extensions/callouts.ts` layer recognises).
+**Not drawn yet:**
 
-> `CanvasView` exposes a `renderMarkdown` prop for historical reasons; **it
-> is deprecated and ignored**. Text rendering always goes through the Skia
-> path described above. See [#26](https://github.com/workspace-sh/react-native-jsoncanvas/issues/26).
+- Tables and images are dropped
+- Nested list items are dropped; only the top level of a list draws
+- Task-list items draw as plain bullets, without a checkbox
+
+> `CanvasView` still accepts a `renderMarkdown` prop, but **it is deprecated
+> and ignored**: text always draws through the Skia path described above. See
+> [#26](https://github.com/workspace-sh/react-native-jsoncanvas/issues/26).
 
 ## Development
 

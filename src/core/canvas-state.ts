@@ -4,6 +4,7 @@ import type {
   CanvasEdge,
   CanvasNode,
   FileNode,
+  GroupBackgroundStyle,
   GroupNode,
   LinkNode,
   Rect,
@@ -14,7 +15,6 @@ import {
   createCommandHistory,
   invertOperation,
   type CanvasCommandHistory,
-  type GroupBackgroundStyle,
   type Operation,
 } from './operations';
 
