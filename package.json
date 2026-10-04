@@ -1,7 +1,7 @@
 {
   "name": "@workspace.sh/react-native-jsoncanvas",
   "version": "0.0.1",
-  "description": "React Native renderer for JSON Canvas (.canvas) documents. Skia + Reanimated, with pan / pinch / fit / recenter controls.",
+  "description": "Renderer for JSON Canvas (.canvas) documents: React Native (Skia + Reanimated, with pan / pinch / fit / recenter controls) and GTK4 / libadwaita on Linux (Cairo, via GTKX).",
   "license": "MIT",
   "author": "Leslie Owusu-Appiah <leslie@workspace.sh>",
   "homepage": "https://github.com/workspace-sh/react-native-jsoncanvas#readme",
@@ -23,10 +23,27 @@
     "reanimated",
     "obsidian",
     "ios",
-    "macos"
+    "macos",
+    "gtk",
+    "gtk4",
+    "libadwaita",
+    "linux"
   ],
   "main": "src/index.ts",
   "types": "src/index.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./gtk": {
+      "source": "./src/gtk/index.ts",
+      "types": "./src/gtk/index.ts",
+      "default": "./src/gtk/index.ts"
+    },
+    "./package.json": "./package.json"
+  },
   "files": [
     "src",
     "README.md",
@@ -66,6 +83,8 @@
     "node": ">=20"
   },
   "peerDependencies": {
+    "@gtkx/cairo": ">=1.4.0",
+    "@gtkx/react": ">=1.4.0",
     "@shopify/react-native-skia": ">=2.5.0",
     "react": ">=19.0.0",
     "react-native": ">=0.81.0",
@@ -97,5 +116,13 @@
     "prettier": "^2.8.8",
     "ts-jest": "^29.4.10",
     "typescript": "^5.8.3"
+  },
+  "peerDependenciesMeta": {
+    "@gtkx/cairo": {
+      "optional": true
+    },
+    "@gtkx/react": {
+      "optional": true
+    }
   }
 }

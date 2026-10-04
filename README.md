@@ -108,12 +108,51 @@ When present, the library's own scroll-wheel monitor stays installed but
 the renderer listens to your bridge instead. You don't need to disable
 anything; it's a runtime preference.
 
+### Linux (GTK4 + libadwaita, via [GTKX](https://gtkx.dev))
+
+GTK can't host React Native or Skia, so Linux has its own renderer under
+the `./gtk` entry point: the same core document model, drawn with Cairo
+on a `GtkDrawingArea`.
+
+```tsx
+import {CanvasView} from '@workspace.sh/react-native-jsoncanvas/gtk';
+
+<CanvasView source={canvasJson} label="Board" />;
+```
+
+- **Gestures:** scroll pans, Ctrl+scroll zooms about the pointer, drag
+  pans, pinch zooms. Recentre and fit buttons sit in the bottom trailing
+  corner, and the last of the two is re-applied when the view resizes or
+  `sidebarShown` changes.
+- **Camera:** `initialCamera` restores a saved view; `onCameraChange`
+  reports where a gesture or a button left it, once per gesture.
+- **Colour scheme:** pass `colorScheme` (`'light'` or `'dark'`) as you
+  would to the React Native `CanvasView`, or leave it out and the canvas
+  follows libadwaita's `Adw.StyleManager`, live.
+- **Draws:** text, file, link and group nodes as coloured cards with
+  their text, file name or URL; edges with an arrowhead. Not yet:
+  markdown in text nodes, images, Canvas Candy, the minimap, edge labels
+  and end styles.
+
+Peers: `@gtkx/react` and `@gtkx/cairo` (optional, so non-GTK installs
+don't fetch them), plus the app's GTKX-generated `@gtkx/gi` and
+`@gtkx/jsx` bindings with `Adw-1` bound. Nothing in this repo typechecks
+or tests the GTK code, because the bindings are generated in the app;
+the app that consumes it does both.
+
+If you link a checkout of this repo rather than installing it, its own
+`node_modules` (React included) sits nearer the source than your app's.
+Point those peers back at the app: in Vite,
+`resolve.dedupe: ['react', '@gtkx/react', '@gtkx/cairo', '@gtkx/gi', '@gtkx/jsx']`,
+and the matching `paths` in `tsconfig.json`.
+
 ## What's inside
 
-The library exposes two layers:
+The library exposes three layers:
 
 - **Core** — pure-TS JSON Canvas parser, serialiser, spatial index, and stateful document model. No React, no rendering.
 - **Renderer** — Skia-based React Native components (`CanvasView`, `SkiaCanvasLayer`, node and edge renderers) with built-in pan / pinch / double-tap gestures.
+- **GTK renderer** (`./gtk`) — Cairo drawing and a GTKX `CanvasView` for GTK4 and libadwaita apps on Linux, on the same core.
 
 The renderer is consumed through `CanvasView`. The core surface (`parseCanvas`, `createCanvasState`, etc.) is exported alongside if you need to inspect or mutate documents independently.
 
