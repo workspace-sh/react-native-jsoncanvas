@@ -1,6 +1,11 @@
 # @workspace.sh/react-native-jsoncanvas
 
-React Native renderer for [JSON Canvas](https://jsoncanvas.org/) (`.canvas`) documents. Skia + Reanimated, with pan / pinch / double-tap zoom and an imperative fit / recenter API.
+Renderer for [JSON Canvas](https://jsoncanvas.org/) (`.canvas`) documents, on one document model:
+
+- **React Native** (iOS, Android, macOS): Skia + Reanimated, with pan / pinch / double-tap zoom and an imperative fit / recenter API.
+- **GTK4 and libadwaita** (Linux): Cairo through [GTKX](https://gtkx.dev), as the `./gtk` entry point. See [Linux](#linux-gtk4--libadwaita-via-gtkx).
+
+The name says React Native for history's sake; GTKX is React too.
 
 ## Install
 
@@ -8,7 +13,7 @@ React Native renderer for [JSON Canvas](https://jsoncanvas.org/) (`.canvas`) doc
 npm install @workspace.sh/react-native-jsoncanvas
 ```
 
-Peer dependencies (you provide these in your app):
+Peer dependencies for React Native (you provide these in your app; for Linux, see [Linux](#linux-gtk4--libadwaita-via-gtkx)):
 
 - `react`
 - `react-native`
@@ -47,17 +52,19 @@ Call `controls.current?.fitToViewport()` or `controls.current?.recenter()` from 
 
 ## Platforms & gestures
 
-The same `<CanvasView />` works across iOS, Android, and macOS. **You don't
-need to wire up any platform-specific gesture handling** — the library
-ships every gesture it supports as a default.
+The same `<CanvasView />` works across iOS, Android, and macOS, and
+Linux has its own `<CanvasView />` with the same camera behaviour.
+**You don't need to wire up any platform-specific gesture handling** —
+the library ships every gesture it supports as a default.
 
-| Gesture                       | iOS | Android | macOS |
-|-------------------------------|-----|---------|-------|
-| Pinch to zoom                 | ✓   | ✓       | ✓ (trackpad pinch) |
-| Pan / drag                    | ✓   | ✓       | ✓ (click-and-drag) |
-| Two-finger trackpad pan       | —   | —       | ✓ |
-| Double-tap to zoom-to-node    | ✓   | ✓       | ✓ (trackpad two-finger double-tap, a.k.a. Smart Zoom) |
-| Inertial fling                | ✓   | ✓       | — (macOS pan is direct, no inertia) |
+| Gesture                       | iOS | Android | macOS | Linux |
+|-------------------------------|-----|---------|-------|-------|
+| Pinch to zoom                 | ✓   | ✓       | ✓ (trackpad pinch) | ✓ (touchpad or touch pinch) |
+| Pan / drag                    | ✓   | ✓       | ✓ (click-and-drag) | ✓ (click-and-drag) |
+| Two-finger trackpad pan       | —   | —       | ✓ | ✓ (scroll) |
+| Ctrl + scroll to zoom         | —   | —       | — | ✓ (about the pointer) |
+| Double-tap to zoom-to-node    | ✓   | ✓       | ✓ (trackpad two-finger double-tap, a.k.a. Smart Zoom) | — |
+| Inertial fling                | ✓   | ✓       | — (macOS pan is direct, no inertia) | — |
 
 ### iOS / Android (Expo or bare RN)
 
@@ -166,6 +173,10 @@ npm run lint      # eslint src
 ```
 
 Tests use a separate `tsconfig.test.json` so the library's main `tsconfig.json` stays free of `jest` / `node` types.
+
+None of these reach `src/gtk/`: GTKX generates its bindings inside the app
+that uses them, so the GTK renderer is typechecked and tested by its
+consumer (Workspace's Linux client). See `AGENTS.md`.
 
 ### Example apps
 
