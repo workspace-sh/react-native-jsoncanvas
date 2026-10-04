@@ -20,7 +20,7 @@ import {
   type ScrollWheelEvent,
   type SmartMagnifyEvent,
 } from './NativeScrollWheelView';
-import {resolveScheme, getMutedTextColor, type ColorScheme} from './theme';
+import {resolveScheme, getMutedTextColor} from './theme';
 import {CanvasProvider} from './CanvasContext';
 import {useViewportCulling} from './useViewportCulling';
 
@@ -35,13 +35,6 @@ interface Props {
   content: string;
   /** Directory containing the canvas file, used to resolve relative paths. */
   basePath?: string;
-  /**
-   * @deprecated Vestigial. No renderer code consumes this — `TextNodeContent`
-   * returns null and all text-node bodies render via Skia's `paragraphBuilder`.
-   * The prop is accepted (and ignored) so existing consumers don't break.
-   * Will be removed in a future major version. See #26.
-   */
-  renderMarkdown?: (text: string, colorScheme: ColorScheme) => React.ReactElement;
   /** Saved view state to restore (pan/zoom position). */
   initialViewState?: ViewState;
   /** Called when the view state changes (for persistence). */
@@ -144,7 +137,7 @@ const CAMERA_ANIM_DURATION_MS = 300;
  * break rendering). Content changes flow through React reconciliation via
  * useMemo/useLayoutEffect on the content prop.
  */
-export function CanvasView({content, basePath, renderMarkdown, initialViewState, onViewStateChange, onReady, doubleTapMaxDelayMs, minimap = 'bottom-right', minimapBottomInset = 0, leftOverlayWidth}: Props) {
+export function CanvasView({content, basePath, initialViewState, onViewStateChange, onReady, doubleTapMaxDelayMs, minimap = 'bottom-right', minimapBottomInset = 0, leftOverlayWidth}: Props) {
   // `useWindowDimensions` returns the whole application window — on desktop
   // that includes the sidebar pane that sits to the left of the canvas
   // viewport. Computing "centre" against full-window dimensions lands the
@@ -934,8 +927,8 @@ export function CanvasView({content, basePath, renderMarkdown, initialViewState,
   );
 
   const contextValue = useMemo(
-    () => ({colorScheme, renderMarkdown}),
-    [colorScheme, renderMarkdown],
+    () => ({colorScheme}),
+    [colorScheme],
   );
 
   if (!canvasState) {
