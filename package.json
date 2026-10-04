@@ -1,7 +1,7 @@
 {
   "name": "@workspace.sh/react-native-jsoncanvas",
   "version": "0.0.1",
-  "description": "Renderer for JSON Canvas (.canvas) documents: React Native (Skia + Reanimated, with pan / pinch / fit / recenter controls) and GTK4 / libadwaita on Linux (Cairo, via GTKX).",
+  "description": "React Native renderer for JSON Canvas (.canvas) documents. Skia + Reanimated, with pan / pinch / fit / recenter controls; also renders on Linux through GTKX (GTK4 + libadwaita, Cairo).",
   "license": "MIT",
   "author": "Leslie Owusu-Appiah <leslie@workspace.sh>",
   "homepage": "https://github.com/workspace-sh/react-native-jsoncanvas#readme",

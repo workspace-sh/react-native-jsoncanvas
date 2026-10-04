@@ -1,11 +1,8 @@
 # @workspace.sh/react-native-jsoncanvas
 
-Renderer for [JSON Canvas](https://jsoncanvas.org/) (`.canvas`) documents, on one document model:
+React Native renderer for [JSON Canvas](https://jsoncanvas.org/) (`.canvas`) documents. Skia + Reanimated, with pan / pinch / double-tap zoom and an imperative fit / recenter API, on iOS, Android and macOS.
 
-- **React Native** (iOS, Android, macOS): Skia + Reanimated, with pan / pinch / double-tap zoom and an imperative fit / recenter API.
-- **GTK4 and libadwaita** (Linux): Cairo through [GTKX](https://gtkx.dev), as the `./gtk` entry point. See [Linux](#linux-gtk4--libadwaita-via-gtkx).
-
-The name says React Native for history's sake; GTKX is React too.
+It also renders on Linux through [GTKX](https://gtkx.dev), React for GTK4 and libadwaita: the same document model, drawn with Cairo, as the `./gtk` entry point. See [Linux](#linux-gtk4--libadwaita-via-gtkx).
 
 ## Install
 
