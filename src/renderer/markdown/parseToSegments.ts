@@ -158,7 +158,18 @@ function inlineSegments(nodes: PhrasingContent[], baseStyle: SegmentStyle): Text
       result.push(seg);
     }
   }
-  return result;
+  return joinedRuns(result, baseStyle);
+}
+
+/**
+ * One block's runs, joined into its lines: every run carries on to the next
+ * on the same line, except the block's last and one before a line break.
+ */
+function joinedRuns(runs: TextSegment[], block: SegmentStyle): TextSegment[] {
+  return runs.map((seg, i) => {
+    const next = runs[i + 1];
+    return !seg.style.isBlank && next && !next.style.isBlank ? {...seg, inline: true, block} : {...seg, block};
+  });
 }
 
 // ---------- Block-level walking ----------
@@ -198,7 +209,7 @@ function walkTree(nodes: Content[], segments: TextSegment[]): void {
           } else {
             itemSegs.push({text: prefix, style: BODY});
           }
-          segments.push(...itemSegs);
+          segments.push(...joinedRuns(itemSegs, BODY));
         }
         break;
       }
@@ -268,7 +279,9 @@ function parseToSegmentsUncached(text: string): TextSegment[] {
   const result: TextSegment[] = [];
   for (let i = 0; i < segments.length; i++) {
     result.push(segments[i]);
-    if (i < segments.length - 1 && segments[i].style !== segments[i + 1].style) {
+    // A blank line between blocks of different styles, never between the runs of one line.
+    const blockOf = (s: TextSegment) => s.block ?? s.style;
+    if (i < segments.length - 1 && !segments[i].inline && blockOf(segments[i]) !== blockOf(segments[i + 1])) {
       if (!segments[i].style.isBlank && !segments[i + 1].style.isBlank) {
         result.push({text: '', style: {...BODY, isBlank: true}});
       }
