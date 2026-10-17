@@ -24,6 +24,8 @@ interface Props {
   /** Additional bottom inset (in pt) applied when the minimap is at a
    *  `bottom-*` corner. Consumer-supplied; combines with platform defaults. */
   bottomInset?: number;
+  /** The host's material to sit on, in place of the drawn background and border. */
+  background?: (size: {width: number; height: number}) => React.ReactNode;
 }
 
 const EDGE_PADDING = 12;
@@ -75,6 +77,7 @@ export function CanvasMinimap({
   viewportHeight,
   leftOverlayWidth,
   bottomInset = 0,
+  background,
 }: Props) {
   const size = useMemo(() => getMinimapSize(), []);
   // Typed rather than inline so a mistyped key fails the build instead of
@@ -182,15 +185,20 @@ export function CanvasMinimap({
       pointerEvents="none"
       style={[styles.container, getPositionStyle(position, bottomInset), {width: size.width, height: size.height}]}
     >
+      {background ? <View style={[StyleSheet.absoluteFill, styles.background]}>{background(size)}</View> : null}
       <Canvas style={canvasStyle}>
-        <RoundedRect x={0} y={0} width={size.width} height={size.height} r={BORDER_RADIUS} color={bgColor} />
-        <RoundedRect
-          x={0.5} y={0.5}
-          width={size.width - 1} height={size.height - 1}
-          r={BORDER_RADIUS - 0.5}
-          color={borderColor}
-          style="stroke" strokeWidth={1}
-        />
+        {background ? null : (
+          <>
+            <RoundedRect x={0} y={0} width={size.width} height={size.height} r={BORDER_RADIUS} color={bgColor} />
+            <RoundedRect
+              x={0.5} y={0.5}
+              width={size.width - 1} height={size.height - 1}
+              r={BORDER_RADIUS - 0.5}
+              color={borderColor}
+              style="stroke" strokeWidth={1}
+            />
+          </>
+        )}
 
         {/* All canvas content, scaled into minimap space. Reuses the main
             canvas renderers — visual fidelity inherited for free. */}
@@ -226,5 +234,9 @@ export function CanvasMinimap({
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
+  },
+  background: {
+    borderRadius: BORDER_RADIUS,
+    overflow: 'hidden',
   },
 });
