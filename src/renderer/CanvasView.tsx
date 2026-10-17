@@ -12,6 +12,7 @@ import {
 import {cameraActionForResize} from './keepCameraOnResize';
 import {SkiaCanvasLayer} from './SkiaCanvasLayer';
 import {CanvasMinimap, type MinimapPosition} from './CanvasMinimap';
+import {nodesMatching} from './findNodes';
 import {
   jsonCanvasGestureEvents,
   scrollWheelEvents,
@@ -60,6 +61,14 @@ interface Props {
      * user has since panned, pinched, or double-tap-zoomed).
      */
     getLastAction: () => 'fit' | 'recenter' | 'manual';
+    /**
+     * Find the nodes whose text holds `query` (a card's text, a file's or
+     * link's name, a group's label), in reading order, and show the first.
+     * Returns how many there are and which is shown; an empty query clears it.
+     */
+    find: (query: string) => FindResult;
+    /** Show the next (1) or previous (-1) of what `find` found, wrapping round. */
+    findStep: (step: 1 | -1) => FindResult;
   }) => void;
   /**
    * Maximum gap between taps in the double-tap-to-zoom gesture (ms).
@@ -96,6 +105,18 @@ interface Props {
    * to 0 (full viewport) when not provided.
    */
   leftOverlayWidth?: SharedValue<number>;
+  /**
+   * What the minimap sits on, in place of its own drawn background and
+   * border: the host's material (a Liquid Glass view on iOS, say), given the
+   * minimap's size and drawn behind its content, clipped to its corners.
+   */
+  minimapBackground?: (size: {width: number; height: number}) => React.ReactNode;
+}
+
+/** What a search of the canvas found: how many, and which of them is shown (-1 when none). */
+export interface FindResult {
+  count: number;
+  index: number;
 }
 
 const MIN_SCALE = 0.1; // 0.1 default
@@ -137,7 +158,7 @@ const CAMERA_ANIM_DURATION_MS = 300;
  * break rendering). Content changes flow through React reconciliation via
  * useMemo/useLayoutEffect on the content prop.
  */
-export function CanvasView({content, basePath, initialViewState, onViewStateChange, onReady, doubleTapMaxDelayMs, minimap = 'bottom-right', minimapBottomInset = 0, leftOverlayWidth}: Props) {
+export function CanvasView({content, basePath, initialViewState, onViewStateChange, onReady, doubleTapMaxDelayMs, minimap = 'bottom-right', minimapBottomInset = 0, leftOverlayWidth, minimapBackground}: Props) {
   // `useWindowDimensions` returns the whole application window — on desktop
   // that includes the sidebar pane that sits to the left of the canvas
   // viewport. Computing "centre" against full-window dimensions lands the
@@ -547,6 +568,31 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
   fitRef.current = fitToViewport;
   recenterRef.current = recenter;
 
+  // A search of the canvas: what it found, and which is shown. Showing one is
+  // the camera's own zoom-to-node, so the reader can pan away and step back.
+  const found = useRef<{nodes: CanvasNode[]; index: number}>({nodes: [], index: -1});
+  const showFound = useRef((_node: CanvasNode) => {});
+  showFound.current = (node: CanvasNode) => {
+    lastActionRef.current = 'manual';
+    zoomToNode(node, leftOverlayWidth?.value ?? 0);
+  };
+  const nodesNow = useRef<CanvasNode[]>([]);
+  nodesNow.current = canvasState?.document.nodes ?? [];
+  const find = useCallback((query: string): FindResult => {
+    const nodes = nodesMatching(nodesNow.current, query);
+    found.current = {nodes, index: nodes.length > 0 ? 0 : -1};
+    if (nodes[0]) showFound.current(nodes[0]);
+    return {count: nodes.length, index: found.current.index};
+  }, []);
+  const findStep = useCallback((step: 1 | -1): FindResult => {
+    const {nodes, index} = found.current;
+    if (nodes.length === 0) return {count: 0, index: -1};
+    const next = (index + step + nodes.length) % nodes.length;
+    found.current = {nodes, index: next};
+    showFound.current(nodes[next]!);
+    return {count: nodes.length, index: next};
+  }, []);
+
   // A fit or a recentre survives a resize.
   //
   // The camera is computed against the viewport, so a canvas that was fitted
@@ -571,6 +617,8 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
       fitToViewport: (leftOverlayWidth?: number) => fitRef.current(leftOverlayWidth),
       recenter: (leftOverlayWidth?: number) => recenterRef.current(leftOverlayWidth),
       getLastAction: () => lastActionRef.current,
+      find,
+      findStep,
     });
     // Only call onReady once per mount — callbacks update via refs
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -971,6 +1019,7 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
               viewportHeight={viewportHeight}
               leftOverlayWidth={leftOverlayWidth}
               bottomInset={minimapBottomInset}
+              background={minimapBackground}
             />
           )}
         </View>
