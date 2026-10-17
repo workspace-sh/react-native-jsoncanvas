@@ -12,8 +12,10 @@ type MeasureText = (text: string, style: SegmentStyle) => number;
  * Wrap segments into lines that fit within maxWidth/maxHeight.
  *
  * Each segment is split at word boundaries. Lines accumulate segments
- * until adding the next word would exceed maxWidth. Height is tracked
- * and lines beyond maxHeight are truncated.
+ * until adding the next word would exceed maxWidth. A segment marked
+ * `inline` carries on to the next on the same line (a sentence's bold,
+ * code or link runs); any other ends its line. Height is tracked and
+ * lines beyond maxHeight are truncated.
  */
 export function wrapSegments(
   segments: TextSegment[],
@@ -56,18 +58,24 @@ export function wrapSegments(
     }
 
     const availWidth = maxWidth - indent;
-    const words = text.split(' ');
+    // A run that carries on a line starts where the one before it ended; its
+    // leading space (the gap after the previous run) is kept as width.
+    const leading = currentLineSegments.length > 0 ? text.slice(0, text.length - text.trimStart().length) : '';
+    const words = (leading ? text.trimStart() : text).split(' ');
     let currentText = '';
 
     for (let i = 0; i < words.length; i++) {
       const word = words[i];
-      const testText = currentText ? `${currentText} ${word}` : word;
-      const testWidth = measureText(testText, style);
+      // The first word of a run that carries on a line keeps the gap before it.
+      const testText = currentText ? `${currentText} ${word}` : i === 0 ? leading + word : word;
+      const testWidth = lineX - indent + measureText(testText, style);
 
-      if (testWidth > availWidth && currentText) {
+      if (testWidth > availWidth && (currentText || currentLineSegments.length > 0)) {
         // Current text doesn't fit with new word — flush this segment to line
-        currentLineSegments.push({text: currentText, style, x: lineX});
-        lineX += measureText(currentText, style);
+        if (currentText) {
+          currentLineSegments.push({text: currentText, style, x: lineX});
+          lineX += measureText(currentText, style);
+        }
 
         // Flush line
         if (!flushLine(style.lineHeight)) break;
@@ -105,8 +113,8 @@ export function wrapSegments(
       lineX += measureText(currentText, style);
     }
 
-    // Flush at segment boundary (each TextSegment is a block-level line)
-    if (!flushLine(style.lineHeight)) break;
+    // A line ends here unless the next run carries on it.
+    if (!segment.inline && !flushLine(style.lineHeight)) break;
   }
 
   // Flush any remaining segments
