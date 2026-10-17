@@ -111,6 +111,13 @@ interface Props {
    * minimap's size and drawn behind its content, clipped to its corners.
    */
   minimapBackground?: (size: {width: number; height: number}) => React.ReactNode;
+  /**
+   * A strip along the view's left edge, in points, where a drag doesn't pan
+   * the canvas but is left to the system: iOS's swipe back, when the canvas
+   * is a screen in a navigation stack. Taps and pinches there still reach
+   * the canvas. Defaults to 0 (the canvas pans from anywhere).
+   */
+  systemEdge?: number;
 }
 
 /** What a search of the canvas found: how many, and which of them is shown (-1 when none). */
@@ -158,7 +165,7 @@ const CAMERA_ANIM_DURATION_MS = 300;
  * break rendering). Content changes flow through React reconciliation via
  * useMemo/useLayoutEffect on the content prop.
  */
-export function CanvasView({content, basePath, initialViewState, onViewStateChange, onReady, doubleTapMaxDelayMs, minimap = 'bottom-right', minimapBottomInset = 0, leftOverlayWidth, minimapBackground}: Props) {
+export function CanvasView({content, basePath, initialViewState, onViewStateChange, onReady, doubleTapMaxDelayMs, minimap = 'bottom-right', minimapBottomInset = 0, leftOverlayWidth, minimapBackground, systemEdge = 0}: Props) {
   // `useWindowDimensions` returns the whole application window — on desktop
   // that includes the sidebar pane that sits to the left of the canvas
   // viewport. Computing "centre" against full-window dimensions lands the
@@ -798,6 +805,8 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
       Gesture.Pan()
         .minDistance(3)
         .maxPointers(1)
+        // A drag from the edge strip is the system's (a negative slop shrinks where a pan can start).
+        .hitSlop({left: -systemEdge})
         .onStart(() => {
           'worklet';
           // Halt any in-flight camera animation so the user's pan takes over
@@ -836,7 +845,7 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
             scheduleOnRN(saveViewState);
           }
         }),
-    [translateX, translateY, prevTranslateX, prevTranslateY, animCancelled, setLastAction, saveViewState],
+    [translateX, translateY, prevTranslateX, prevTranslateY, animCancelled, setLastAction, saveViewState, systemEdge],
   );
 
   // Trackpad pinch to zoom
