@@ -187,7 +187,7 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
   // origin is (0, 0); for a host with a sidebar or other left/top chrome
   // the canvas pane sits past it, and without this subtraction taps land
   // off-by-chrome-width and miss every node.
-  const canvasViewRef = useRef<View>(null);
+  const canvasViewRef = useRef<React.ComponentRef<typeof View>>(null);
   const canvasOriginRef = useRef({x: 0, y: 0, width: 0, height: 0});
   const onLayout = useCallback((event: LayoutChangeEvent) => {
     const {width, height} = event.nativeEvent.layout;
@@ -642,7 +642,9 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
     if (!source) return;
     const sub = source.addListener(
       'onScrollWheel',
-      (event: ScrollWheelEvent) => {
+      (raw: unknown) => {
+        // An emitter's event is untyped: this one is a ScrollWheelEvent.
+        const event = raw as ScrollWheelEvent;
         translateX.value += event.deltaX;
         translateY.value += event.deltaY;
         // Trackpad scroll is a manual gesture — sidebar toggle should not
@@ -694,7 +696,9 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
     const isLibraryBridge = source === jsonCanvasGestureEvents;
     const sub = source.addListener(
       'onSmartMagnify',
-      (event: SmartMagnifyEvent) => {
+      (raw: unknown) => {
+        // An emitter's event is untyped: this one is a SmartMagnifyEvent.
+        const event = raw as SmartMagnifyEvent;
         let localX = event.x;
         let localY = event.y;
         if (isLibraryBridge) {
@@ -755,7 +759,9 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
     if (!jsonCanvasGestureEvents) return;
     const sub = jsonCanvasGestureEvents.addListener(
       'onMouseMoved',
-      (event: MouseMovedEvent) => {
+      (raw: unknown) => {
+        // An emitter's event is untyped: this one is a MouseMovedEvent.
+        const event = raw as MouseMovedEvent;
         // Mid-pinch the camera is mutating on the UI thread while the Picture
         // overlay stands in for the live tree — a hover chip would be both
         // stale and invisible. Drop out and let the pointer's next resting
