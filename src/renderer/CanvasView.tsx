@@ -31,6 +31,14 @@ interface ViewState {
   scale: number;
 }
 
+/** The camera's shared values (CanvasView's onReady): where the canvas is panned to, its zoom, and whether a pinch is under way. */
+export interface CanvasCamera {
+  translateX: SharedValue<number>;
+  translateY: SharedValue<number>;
+  scale: SharedValue<number>;
+  isPinching: SharedValue<boolean>;
+}
+
 interface Props {
   /** Raw JSON string of a .canvas file. */
   content: string;
@@ -61,6 +69,13 @@ interface Props {
      * user has since panned, pinched, or double-tap-zoomed).
      */
     getLastAction: () => 'fit' | 'recenter' | 'manual';
+    /**
+     * The camera's own values, for a host that drives it (a benchmark, a
+     * guided tour): writing them moves the canvas exactly as a pinch or a
+     * pan does. `isPinching` true draws from the recorded picture, as a
+     * pinch in progress does.
+     */
+    camera: CanvasCamera;
     /**
      * Find the nodes whose text holds `query` (a card's text, a file's or
      * link's name, a group's label), in reading order, and show the first.
@@ -631,6 +646,7 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
       fitToViewport: (leftOverlayWidth?: number) => fitRef.current(leftOverlayWidth),
       recenter: (leftOverlayWidth?: number) => recenterRef.current(leftOverlayWidth),
       getLastAction: () => lastActionRef.current,
+      camera: {translateX, translateY, scale, isPinching},
       find,
       findStep,
     });

@@ -5,7 +5,7 @@ import {StatusBar} from 'expo-status-bar';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import {CanvasView} from '@workspace.sh/react-native-jsoncanvas';
-import {SAMPLE_CANVAS} from './fixtures';
+import {SAMPLE_CANVAS} from '../shared/fixtures';
 
 type Controls = {
   fitToViewport: (leftInset?: number) => void;
