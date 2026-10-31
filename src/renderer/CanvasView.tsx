@@ -11,7 +11,7 @@ import {
 } from '../core';
 import {cameraActionForResize} from './keepCameraOnResize';
 import {SkiaCanvasLayer} from './SkiaCanvasLayer';
-import {CanvasMinimap, type MinimapPosition} from './CanvasMinimap';
+import {CanvasMinimap, type Insets, type MinimapPosition} from './CanvasMinimap';
 import {nodesMatching} from './findNodes';
 import {
   jsonCanvasGestureEvents,
@@ -96,6 +96,13 @@ interface Props {
    */
   minimapBottomInset?: number;
   /**
+   * The screen's safe area (notch, home indicator, rounded corners), from
+   * the host (e.g. react-native-safe-area-context's `useSafeAreaInsets`).
+   * The canvas still draws edge to edge; its controls, the minimap, keep
+   * inside it. `minimapBottomInset` is added above the safe area's bottom.
+   */
+  safeAreaInsets?: Insets;
+  /**
    * Live width of a left-edge opaque overlay (e.g. macOS NSSplitView
    * sidebar) as a Reanimated SharedValue. Read by the minimap's derived
    * viewport rectangle so it represents the *visible* canvas pane rather
@@ -165,7 +172,7 @@ const CAMERA_ANIM_DURATION_MS = 300;
  * break rendering). Content changes flow through React reconciliation via
  * useMemo/useLayoutEffect on the content prop.
  */
-export function CanvasView({content, basePath, initialViewState, onViewStateChange, onReady, doubleTapMaxDelayMs, minimap = 'bottom-right', minimapBottomInset = 0, leftOverlayWidth, minimapBackground, systemEdge = 0}: Props) {
+export function CanvasView({content, basePath, initialViewState, onViewStateChange, onReady, doubleTapMaxDelayMs, minimap = 'bottom-right', minimapBottomInset = 0, safeAreaInsets, leftOverlayWidth, minimapBackground, systemEdge = 0}: Props) {
   // `useWindowDimensions` returns the whole application window — on desktop
   // that includes the sidebar pane that sits to the left of the canvas
   // viewport. Computing "centre" against full-window dimensions lands the
@@ -1028,6 +1035,7 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
               viewportHeight={viewportHeight}
               leftOverlayWidth={leftOverlayWidth}
               bottomInset={minimapBottomInset}
+              safeArea={safeAreaInsets}
               background={minimapBackground}
             />
           )}
