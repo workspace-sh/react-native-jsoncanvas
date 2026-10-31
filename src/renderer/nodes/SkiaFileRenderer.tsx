@@ -1,5 +1,5 @@
 import React from 'react';
-import {Text, RoundedRect, matchFont} from '@shopify/react-native-skia';
+import {Text, RoundedRect, matchFont} from 'react-native-skia';
 import type {FileNode} from '../../core';
 import {getChipBackground, getMutedTextColor, getTextColor, type ColorScheme} from '../theme';
 import {CHIP, LABEL} from '../metrics';

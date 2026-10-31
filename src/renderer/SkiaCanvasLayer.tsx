@@ -1,6 +1,6 @@
 import React, {useMemo} from 'react';
 import {StyleSheet, type ViewStyle} from 'react-native';
-import {Canvas, Group, Picture, processTransform3d} from '@shopify/react-native-skia';
+import {Canvas, Group, Picture, processTransform3d} from 'react-native-skia';
 import {useDerivedValue, type SharedValue} from 'react-native-reanimated';
 import type {CanvasEdge, CanvasNode, TextNode, LinkNode, FileNode, GroupNode} from '../core';
 import {hasCssClasses, enrichNodes, type EnrichedNode} from './extensions/cssclasses';

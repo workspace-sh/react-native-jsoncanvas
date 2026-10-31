@@ -1,5 +1,5 @@
 import React from 'react';
-import {Image, ImageSVG, useImage, Group, rect, fitbox, type SkSVG, type SkImage} from '@shopify/react-native-skia';
+import {Image, ImageSVG, useImage, Group, rect, fitbox, type SkSVG, type SkImage} from 'react-native-skia';
 import type {FileNode} from '../../core';
 import {devFlags} from '../devFlags';
 import {resolveFileUri} from '../utils/resolveFileUri';

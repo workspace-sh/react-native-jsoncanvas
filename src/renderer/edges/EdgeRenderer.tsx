@@ -6,7 +6,7 @@ import {
   RoundedRect,
   Group,
   matchFont,
-} from '@shopify/react-native-skia';
+} from 'react-native-skia';
 import type {CanvasEdge, CanvasNode, EdgeSide} from '../../core';
 import {devFlags} from '../devFlags';
 import {EDGE_LABEL_TEXT_COLOR, resolveEdgeColor} from '../theme';

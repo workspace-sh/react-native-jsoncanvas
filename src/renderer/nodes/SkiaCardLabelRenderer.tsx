@@ -1,5 +1,5 @@
 import React from 'react';
-import {Group, Line, Text, vec, rect, matchFont} from '@shopify/react-native-skia';
+import {Group, Line, Text, vec, rect, matchFont} from 'react-native-skia';
 import type {TextNode} from '../../core';
 import type {EnrichedTextNode} from '../extensions/cssclasses';
 import {hasCallouts, parseCallouts, getLabels} from '../extensions/callouts';
