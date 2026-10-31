@@ -189,6 +189,6 @@ export function getMinimapColors(scheme: ColorScheme): MinimapColors {
 }
 
 /** Resolve a colorScheme from React Native's useColorScheme(). */
-export function resolveScheme(scheme: ColorSchemeName): ColorScheme {
+export function resolveScheme(scheme: ColorSchemeName | null | undefined): ColorScheme {
   return scheme === 'light' ? 'light' : 'dark';
 }
