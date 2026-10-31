@@ -24,6 +24,8 @@ interface Props {
   /** Additional bottom inset (in pt) applied when the minimap is at a
    *  `bottom-*` corner. Consumer-supplied; combines with platform defaults. */
   bottomInset?: number;
+  /** The screen's safe area: the minimap keeps inside it, on every side. */
+  safeArea?: Insets;
   /** The host's material to sit on, in place of the drawn background and border. */
   background?: (size: {width: number; height: number}) => React.ReactNode;
 }
@@ -42,14 +44,20 @@ function getMinimapSize() {
   return MOBILE_SIZE;
 }
 
-function getPositionStyle(position: MinimapPosition, bottomInset: number): ViewStyle {
+export type Insets = {top: number; right: number; bottom: number; left: number};
+export const NO_INSETS: Insets = {top: 0, right: 0, bottom: 0, left: 0};
+
+function getPositionStyle(position: MinimapPosition, bottomInset: number, safe: Insets): ViewStyle {
   const platformBottom = Platform.OS === 'macos' ? MACOS_CONTROLS_INSET : 0;
-  const totalBottom = EDGE_PADDING + platformBottom + bottomInset;
+  const top = EDGE_PADDING + safe.top;
+  const left = EDGE_PADDING + safe.left;
+  const right = EDGE_PADDING + safe.right;
+  const bottom = EDGE_PADDING + safe.bottom + platformBottom + bottomInset;
   switch (position) {
-    case 'top-left':     return {top: EDGE_PADDING, left: EDGE_PADDING};
-    case 'top-right':    return {top: EDGE_PADDING, right: EDGE_PADDING};
-    case 'bottom-left':  return {bottom: totalBottom, left: EDGE_PADDING};
-    case 'bottom-right': return {bottom: totalBottom, right: EDGE_PADDING};
+    case 'top-left':     return {top, left};
+    case 'top-right':    return {top, right};
+    case 'bottom-left':  return {bottom, left};
+    case 'bottom-right': return {bottom, right};
   }
 }
 
@@ -77,6 +85,7 @@ export function CanvasMinimap({
   viewportHeight,
   leftOverlayWidth,
   bottomInset = 0,
+  safeArea = NO_INSETS,
   background,
 }: Props) {
   const size = useMemo(() => getMinimapSize(), []);
@@ -183,7 +192,7 @@ export function CanvasMinimap({
   return (
     <View
       pointerEvents="none"
-      style={[styles.container, getPositionStyle(position, bottomInset), {width: size.width, height: size.height}]}
+      style={[styles.container, getPositionStyle(position, bottomInset, safeArea), {width: size.width, height: size.height}]}
     >
       {background ? <View style={[StyleSheet.absoluteFill, styles.background]}>{background(size)}</View> : null}
       <Canvas style={canvasStyle}>
