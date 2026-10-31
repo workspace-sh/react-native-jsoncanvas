@@ -1,6 +1,6 @@
 import React, {useMemo} from 'react';
 import {View, Platform, StyleSheet, type ViewStyle} from 'react-native';
-import {Canvas, Rect, RoundedRect, Group} from '@shopify/react-native-skia';
+import {Canvas, Rect, RoundedRect, Group} from 'react-native-skia';
 import {useDerivedValue, type SharedValue} from 'react-native-reanimated';
 import type {CanvasNode, CanvasEdge} from '../core';
 import {getCanvasBackground, getMinimapColors, type ColorScheme} from './theme';

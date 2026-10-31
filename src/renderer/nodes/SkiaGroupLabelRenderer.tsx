@@ -1,5 +1,5 @@
 import React from 'react';
-import {Text, RoundedRect, matchFont} from '@shopify/react-native-skia';
+import {Text, RoundedRect, matchFont} from 'react-native-skia';
 import type {GroupNode} from '../../core';
 import {getNodeColors, type ColorScheme} from '../theme';
 import {GROUP_LABEL} from '../metrics';

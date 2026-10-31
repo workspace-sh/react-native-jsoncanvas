@@ -1,6 +1,6 @@
 import {useState, useEffect, useRef} from 'react';
-import {Skia, createPicture, matchFont, PaintStyle, TileMode} from '@shopify/react-native-skia';
-import type {SkPicture, SkCanvas, SkFont, SkPaint, SkImage} from '@shopify/react-native-skia';
+import {Skia, createPicture, matchFont, PaintStyle, TileMode} from 'react-native-skia';
+import type {SkPicture, SkCanvas, SkFont, SkPaint, SkImage} from 'react-native-skia';
 import type {CanvasNode, CanvasEdge, TextNode, LinkNode, FileNode, GroupNode, EdgeSide} from '../core';
 import type {EnrichedTextNode} from './extensions/cssclasses';
 import {hasCallouts, parseCallouts, getHeader, getFooter, getLabels, getCenteredCallout} from './extensions/callouts';
@@ -228,7 +228,7 @@ async function loadImageCache(uris: string[]): Promise<ImageCache> {
     try {
       const data = await Skia.Data.fromURI(uri);
       if (!data) return;
-      const image = Skia.Image.MakeImageFromEncoded(data);
+      const image = Skia.Image.MakeFromEncoded(data);
       if (image) cache.set(uri, {type: 'raster', image});
     } catch (err) {
       console.warn(`[useCanvasPicture] Failed to load image ${uri}:`, err);

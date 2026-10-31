@@ -1,5 +1,5 @@
 import React from 'react';
-import {Image, useImage, rrect, rect} from '@shopify/react-native-skia';
+import {Image, useImage, rrect, rect} from 'react-native-skia';
 import type {GroupNode} from '../../core';
 
 interface Props {

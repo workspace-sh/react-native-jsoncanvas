@@ -2,7 +2,7 @@ import React, {useMemo} from 'react';
 import {
   Group, Line, vec, matchFont, Text, rect,
   Paragraph as SkiaParagraph,
-} from '@shopify/react-native-skia';
+} from 'react-native-skia';
 import type {TextNode} from '../../core';
 import type {EnrichedTextNode} from '../extensions/cssclasses';
 import {hasCallouts, parseCallouts, getHeader, getFooter, getCenteredCallout} from '../extensions/callouts';

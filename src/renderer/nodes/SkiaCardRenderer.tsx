@@ -2,7 +2,7 @@ import React, {useMemo} from 'react';
 import {
   RoundedRect, DashPathEffect, Path, Oval, Group,
   LinearGradient, vec, Skia, Shadow,
-} from '@shopify/react-native-skia';
+} from 'react-native-skia';
 import type {CanvasNode} from '../../core';
 import type {EnrichedTextNode} from '../extensions/cssclasses';
 import {CARD_SHADOW_COLOR, getNodeColors, type ColorScheme} from '../theme';

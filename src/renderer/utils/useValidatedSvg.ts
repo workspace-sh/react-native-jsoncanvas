@@ -1,5 +1,5 @@
 import {useEffect, useState} from 'react';
-import {Skia, type SkSVG} from '@shopify/react-native-skia';
+import {Skia, type SkSVG} from 'react-native-skia';
 import {
   BROKEN_IMAGE_SVG,
   BROKEN_IMAGE_INTRINSIC_HEIGHT,
@@ -137,7 +137,7 @@ export function getBrokenImageSvg(): {
 /**
  * Load and validate an SVG without ever calling `svg.width()` / `svg.height()`.
  *
- * `useSVG()` from `@shopify/react-native-skia` returns a non-null host object
+ * `useSVG()` from `react-native-skia` returns a non-null host object
  * even when the underlying `SkSVGDOM` is null (failed fetch, malformed XML,
  * Skia parser couldn't fully construct). Calling `.width()` on that object
  * dereferences a null pointer and segfaults the app — see #122.

@@ -1,5 +1,5 @@
 import React from 'react';
-import {Text, matchFont} from '@shopify/react-native-skia';
+import {Text, matchFont} from 'react-native-skia';
 import type {LinkNode} from '../../core';
 import {getLinkColor, getMutedTextColor, type ColorScheme} from '../theme';
 import {LINK, NODE} from '../metrics';
