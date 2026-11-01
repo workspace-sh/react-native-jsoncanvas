@@ -256,6 +256,11 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
   // pan, and its release mustn't fling the canvas.
   const pinchEndedAt = useSharedValue(-Infinity);
   const panFromPinch = useSharedValue(false);
+  // Whether the pan is paused for a pinch: a pan that began with the first
+  // finger keeps tracking it when a second lands (iOS ignores the extra
+  // finger rather than ending the pan), so without the pause the pan and the
+  // pinch both moved the camera every frame, each undoing the other.
+  const panPaused = useSharedValue(false);
   const isPinching = useSharedValue(false);
 
   // Camera-animation interrupt flag (#141, #146). Pinch / pan worklets set
@@ -856,9 +861,22 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
           prevTranslateX.value = translateX.value;
           prevTranslateY.value = translateY.value;
           panFromPinch.value = isPinching.value || Date.now() - pinchEndedAt.value < PAN_AFTER_PINCH_MS;
+          panPaused.value = false;
         })
         .onUpdate(event => {
           'worklet';
+          // The pinch moves the camera while it's on; the pan waits, then
+          // carries on from wherever the pinch left it.
+          if (isPinching.value) {
+            panPaused.value = true;
+            panFromPinch.value = true;
+            return;
+          }
+          if (panPaused.value) {
+            panPaused.value = false;
+            prevTranslateX.value = translateX.value - event.translationX;
+            prevTranslateY.value = translateY.value - event.translationY;
+          }
           translateX.value = prevTranslateX.value + event.translationX;
           translateY.value = prevTranslateY.value + event.translationY;
         })
@@ -898,7 +916,7 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
             scheduleOnRN(saveViewState);
           }
         }),
-    [translateX, translateY, scale, prevTranslateX, prevTranslateY, animCancelled, setLastAction, saveViewState, systemEdge, isPinching, pinchEndedAt, panFromPinch, bounds, viewportWidth, viewportHeight],
+    [translateX, translateY, scale, prevTranslateX, prevTranslateY, animCancelled, setLastAction, saveViewState, systemEdge, isPinching, pinchEndedAt, panFromPinch, panPaused, bounds, viewportWidth, viewportHeight],
   );
 
   // Trackpad pinch to zoom
