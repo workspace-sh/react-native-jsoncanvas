@@ -1,6 +1,5 @@
 export {CanvasView} from './CanvasView';
 export {CanvasMinimap, type MinimapPosition} from './CanvasMinimap';
-export {CanvasGlass, CanvasGlassButton, type CanvasGlassProps, type CanvasGlassButtonProps} from './CanvasGlass';
 export {getNodeColors, resolveScheme, type ColorScheme} from './theme';
 export {useCanvasContext, CanvasProvider} from './CanvasContext';
 export {activateScrollWheel, deactivateScrollWheel} from './NativeScrollWheelView';
