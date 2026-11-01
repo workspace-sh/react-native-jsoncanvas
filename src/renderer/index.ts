@@ -1,4 +1,5 @@
 export {CanvasView} from './CanvasView';
+export {CanvasNodePreview, canvasNodePreviewSize} from './CanvasNodePreview';
 export {CanvasMinimap, type MinimapPosition} from './CanvasMinimap';
 export {getNodeColors, resolveScheme, type ColorScheme} from './theme';
 export {useCanvasContext, CanvasProvider} from './CanvasContext';
