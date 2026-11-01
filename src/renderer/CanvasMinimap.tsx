@@ -1,12 +1,11 @@
-import React, {useMemo} from 'react';
+import React, {useEffect, useMemo, useState} from 'react';
 import {View, Platform, StyleSheet, type ViewStyle} from 'react-native';
-import {Canvas, Rect, RoundedRect, Group, processTransform3d} from 'react-native-skia';
+import {Canvas, Rect, RoundedRect, Group, Picture, processTransform3d, type SkPicture} from 'react-native-skia';
 import {useDerivedValue, type SharedValue} from 'react-native-reanimated';
 import type {CanvasNode, CanvasEdge} from '../core';
 import {getCanvasBackground, getMinimapColors, type ColorScheme} from './theme';
 import {hasCssClasses, enrichNodes, type EnrichedNode} from './extensions/cssclasses';
-import {SkiaCardRenderer} from './nodes/SkiaCardRenderer';
-import {EdgeRenderer} from './edges/EdgeRenderer';
+import {recordShapesPicture} from './useCanvasPicture';
 
 export type MinimapPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 
@@ -83,16 +82,13 @@ function getPositionStyle(position: MinimapPosition, bottomInset: number, safe: 
 }
 
 /**
- * Minimap overlay. Reuses the main canvas renderers (`SkiaCardRenderer`,
- * `EdgeRenderer`) inside a scaled `<Group>`, so the minimap inherits all
- * visual treatments — rounded corners, dashed group borders, shape
- * variants, gradients, drop shadows, edge bezier curves with arrows —
- * automatically. Anything the main render gets, the minimap gets.
+ * Minimap overlay. Draws the canvas's cards and edges with the main
+ * Picture's own drawing code (`recordShapesPicture`), recorded once, inside a
+ * scaled `<Group>`, so the minimap has the same rounded corners, dashed group
+ * borders, shape variants, gradients and edge curves as the canvas.
  *
  * Read-only (`pointerEvents="none"` on the container). Text content isn't
- * rendered (markdown rasterization happens elsewhere in `SkiaCanvasLayer`,
- * not in `SkiaCardRenderer`) — which is intentional: illegible at minimap
- * scale and saves the per-node rasterization cost.
+ * drawn: illegible at minimap scale.
  */
 export function CanvasMinimap({
   position,
@@ -118,27 +114,26 @@ export function CanvasMinimap({
     [size],
   );
 
-  // Enrich nodes so SkiaCardRenderer picks up cssclasses renderProps
-  // (shape variants, pill, drop shadow, etc.). No-op when no frontmatter.
+  // Enrich nodes so the drawing picks up cssclasses renderProps (shape
+  // variants, pill, drop shadow, etc.). No-op when no frontmatter.
   const enriched = useMemo<EnrichedNode[]>(
     () => hasCssClasses(nodes) ? enrichNodes(nodes) : (nodes as EnrichedNode[]),
     [nodes],
   );
 
-  const nodeById = useMemo(() => {
-    const m = new Map<string, CanvasNode>();
-    for (const n of enriched) m.set(n.id, n);
-    return m;
-  }, [enriched]);
-
-  // Group nodes drawn first (z-order: groups behind, others in front) —
-  // matches SkiaCanvasLayer's render order.
-  const {groupNodes, otherNodes} = useMemo(() => {
-    const groups: EnrichedNode[] = [];
-    const others: EnrichedNode[] = [];
-    for (const n of enriched) (n.type === 'group' ? groups : others).push(n);
-    return {groupNodes: groups, otherNodes: others};
-  }, [enriched]);
+  // The cards and edges recorded once as a Picture. As live shapes, every
+  // frame of camera movement redrew each of them (tens of thousands of draws
+  // on a large canvas) just to move the viewport marker.
+  // Recorded just after the canvas first shows, not while it opens.
+  const [shapes, setShapes] = useState<SkPicture | null>(null);
+  useEffect(() => {
+    if (enriched.length === 0) {
+      setShapes(null);
+      return;
+    }
+    const frame = requestAnimationFrame(() => setShapes(recordShapesPicture(enriched as CanvasNode[], edges, colorScheme)));
+    return () => cancelAnimationFrame(frame);
+  }, [enriched, edges, colorScheme]);
 
   // What the minimap shows: the canvas and, when the screen reaches past
   // it, the screen too, fitted straight into the box, worked out each frame
@@ -217,25 +212,7 @@ export function CanvasMinimap({
         {/* All canvas content, scaled into minimap space. Reuses the main
             canvas renderers — visual fidelity inherited for free. */}
         <Group matrix={worldToMinimap}>
-          {groupNodes.map(node => (
-            <SkiaCardRenderer key={`g-${node.id}`} node={node} colorScheme={colorScheme} />
-          ))}
-          {edges.map(edge => {
-            const fromNode = nodeById.get(edge.fromNode);
-            const toNode = nodeById.get(edge.toNode);
-            if (!fromNode || !toNode) return null;
-            return (
-              <EdgeRenderer
-                key={edge.id}
-                edge={edge}
-                fromNode={fromNode}
-                toNode={toNode}
-              />
-            );
-          })}
-          {otherNodes.map(node => (
-            <SkiaCardRenderer key={`n-${node.id}`} node={node} colorScheme={colorScheme} />
-          ))}
+          {shapes ? <Picture picture={shapes} /> : null}
         </Group>
 
         {/* Viewport indicator on top — in minimap coords, outside the transform. */}
