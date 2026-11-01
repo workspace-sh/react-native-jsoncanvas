@@ -211,7 +211,7 @@ export function Bench({autorun = true, label}: {autorun?: boolean; label: string
     }
     setStatus('Done');
     setSize(null);
-  }, [label, measure, remount, start, viewport]);
+  }, [label, measure, phase, remount, start, viewport]);
 
   useEffect(() => {
     if (autorun) void run();
