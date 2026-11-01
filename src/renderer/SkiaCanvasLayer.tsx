@@ -1,6 +1,6 @@
 import React, {useMemo} from 'react';
 import {StyleSheet, type ViewStyle} from 'react-native';
-import {Canvas, Group, Picture, createPicture, processTransform3d, type SkPicture} from 'react-native-skia';
+import {Canvas, Group, Picture, processTransform3d} from 'react-native-skia';
 import {useDerivedValue, type SharedValue} from 'react-native-reanimated';
 import type {CanvasEdge, CanvasNode, TextNode, LinkNode, FileNode, GroupNode} from '../core';
 import {hasCssClasses, enrichNodes, type EnrichedNode} from './extensions/cssclasses';
@@ -21,20 +21,7 @@ import {devFlags} from './devFlags';
 // across renders, so it doesn't need to be in any useMemo dep array.
 const SVG_RE = /\.svg$/i;
 
-/**
- * Above this many nodes near the viewport, the canvas is drawn from the
- * recorded Picture rather than the live tree. Every change to the live tree
- * (a culling update as the camera moves) has Skia re-record all of it on the
- * JavaScript thread, which at thousands of nodes takes most of a frame or
- * more; the Picture is replayed on the UI thread at any count (the pinch
- * already draws from it). Below this, the live tree is cheap to update.
- */
-export const LIVE_NODE_LIMIT = 250;
 const NONE: never[] = [];
-
-/** Drawn in the Picture's place while the live tree shows. */
-let emptyPicture: SkPicture | null = null;
-const getEmptyPicture = () => (emptyPicture ??= createPicture(() => {}));
 
 interface CameraValues {
   translateX: SharedValue<number>;
@@ -59,12 +46,6 @@ interface SkiaCanvasLayerProps {
   viewportWidth: number;
   viewportHeight: number;
   basePath?: string;
-  isPinching: SharedValue<boolean>;
-  // True for the duration of a `fitToViewport` / `recenter` /
-  // `zoomToNode` interpolation. Used together with `isPinching` to
-  // reveal the pre-recorded Picture overlay so the live Skia tree
-  // doesn't re-paint at every animated scale (#35).
-  isCameraAnimating: SharedValue<boolean>;
   /**
    * Image file node the pointer is currently over (macOS hover), or null.
    * Reveals that node's filename chip — see `SkiaFileRenderer`. Plain React
@@ -102,8 +83,6 @@ export function SkiaCanvasLayer({
   viewportWidth,
   viewportHeight,
   basePath,
-  isPinching,
-  isCameraAnimating,
   hoveredFileNodeId = null,
 }: SkiaCanvasLayerProps) {
   const matrix = useCameraMatrix(camera);
@@ -121,27 +100,18 @@ export function SkiaCanvasLayer({
   );
   const picture = useCanvasPicture({allNodes: enrichedPictureNodes as CanvasNode[], edges: pictureEdges, nodeMap: nodes, colorScheme, basePath});
 
-  // The Picture overlay is switched by shared values — no runOnJS, no React
-  // reconciliation. Skia picks up the change on the next frame. Shown
-  // during pinch AND during camera-animation tweens (fit/recenter/
-  // zoom-to-node), so the live Skia tree doesn't re-paint at every
-  // animated scale step (#35), and at rest when many nodes are in view.
+  // Once recorded, the canvas is drawn from the Picture (replayed on the UI
+  // thread) at every zoom, and the live tree holds only what the Picture
+  // leaves out: SVGs and the hover chip. Every change to a live Skia tree
+  // (a culling update as the camera moves) has Skia re-record all of it on
+  // the JavaScript thread: about 100 ms at 2,000 nodes, and still 6 to 13 ms
+  // (over 25 ms on an iPhone) for the few dozen nodes in view close up. The
+  // Picture draws the same thing, pixel for pixel. Until it's recorded, and
+  // with `devFlags.enablePictureRecording` off, the live tree draws it all.
   const showPicture = devFlags.enablePictureRecording && picture != null;
-  // Many nodes in view: the Picture alone, with an empty live tree (SVGs,
-  // which the Picture leaves out, and the hover chip stay live).
-  const pictureOnly = showPicture && allNodes.length > LIVE_NODE_LIMIT;
-  // The Picture or nothing, switched on the UI thread as a pinch or tween
-  // starts and ends. Not an opacity of 0: a Group at opacity 0 still drew the
-  // Picture over the live tree, so every translucent fill (group
-  // backgrounds) showed twice as strong at rest.
-  const empty = getEmptyPicture();
-  const shownPicture = useDerivedValue(() => {
-    'worklet';
-    return picture != null && (pictureOnly || isPinching.value || isCameraAnimating.value) ? picture : empty;
-  }, [picture, pictureOnly, empty]);
 
   const resolvedEdges = useMemo(() => {
-    if (pictureOnly) return NONE;
+    if (showPicture) return NONE;
     return edges
       .map(edge => {
         const fromNode = nodes.get(edge.fromNode);
@@ -154,10 +124,10 @@ export function SkiaCanvasLayer({
       fromNode: CanvasNode;
       toNode: CanvasNode;
     }>;
-  }, [edges, nodes, pictureOnly]);
+  }, [edges, nodes, showPicture]);
 
   // Z-ordered node lists
-  const liveNodes = pictureOnly ? NONE : enrichedNodes;
+  const liveNodes = showPicture ? NONE : enrichedNodes;
   const groupNodes = useMemo(
     () => liveNodes.filter((n): n is GroupNode => n.type === 'group'),
     [liveNodes],
@@ -190,10 +160,10 @@ export function SkiaCanvasLayer({
     [fileNodes],
   );
   const nonSvgFileNodes = useMemo(
-    () => (pictureOnly ? NONE : fileNodes.filter(n => !SVG_RE.test(n.file))),
-    [fileNodes, pictureOnly],
+    () => (showPicture ? NONE : fileNodes.filter(n => !SVG_RE.test(n.file))),
+    [fileNodes, showPicture],
   );
-  const liveFileNodes = pictureOnly ? NONE : fileNodes;
+  const liveFileNodes = showPicture ? NONE : fileNodes;
 
   const hoveredFileNode = useMemo(
     () => (hoveredFileNodeId ? fileNodes.find(n => n.id === hoveredFileNodeId) ?? null : null),
@@ -214,7 +184,7 @@ export function SkiaCanvasLayer({
       pointerEvents="none"
     >
       <Group matrix={matrix}>
-        {/* --- Live non-SVG content (covered by the Picture during pinch, or empty when it draws alone) --- */}
+        {/* --- Live non-SVG content (only until the Picture is recorded) --- */}
         {/* Layer 1: group cards (behind everything) */}
         {groupNodes.map(node => (
           <SkiaCardRenderer key={`card-${node.id}`} node={node} colorScheme={colorScheme} />
@@ -300,8 +270,8 @@ export function SkiaCanvasLayer({
             offsetY={0}
           />
         ))}
-        {/* --- Picture overlay (shown during pinch, tweens, and when many nodes are in view) --- */}
-        {showPicture && <Picture picture={shownPicture} />}
+        {/* --- The recorded Picture: everything but SVGs and the hover chip --- */}
+        {showPicture && <Picture picture={picture!} />}
         {/* --- Live SVG content (above Picture for vector fidelity at any zoom) --- */}
         {svgFileNodes.map(node => (
           <SkiaImageRenderer
