@@ -133,6 +133,8 @@ interface Props {
    * minimap's size and drawn behind its content, clipped to its corners.
    */
   minimapBackground?: (size: {width: number; height: number}) => React.ReactNode;
+  /** The minimap's corner radius, in points (6 by default): its background's, drawn or the host's. */
+  minimapCornerRadius?: number;
   /**
    * A strip along the view's left edge, in points, where a drag doesn't pan
    * the canvas but is left to the system: iOS's swipe back, when the canvas
@@ -189,7 +191,7 @@ const CAMERA_ANIM_DURATION_MS = 300;
  * break rendering). Content changes flow through React reconciliation via
  * useMemo/useLayoutEffect on the content prop.
  */
-export function CanvasView({content, basePath, initialViewState, onViewStateChange, onReady, doubleTapMaxDelayMs, minimap = 'bottom-right', minimapBottomInset = 0, safeAreaInsets, leftOverlayWidth, minimapBackground, systemEdge = 0}: Props) {
+export function CanvasView({content, basePath, initialViewState, onViewStateChange, onReady, doubleTapMaxDelayMs, minimap = 'bottom-right', minimapBottomInset = 0, safeAreaInsets, leftOverlayWidth, minimapBackground, minimapCornerRadius, systemEdge = 0}: Props) {
   // `useWindowDimensions` returns the whole application window — on desktop
   // that includes the sidebar pane that sits to the left of the canvas
   // viewport. Computing "centre" against full-window dimensions lands the
@@ -1138,6 +1140,7 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
               bottomInset={minimapBottomInset}
               safeArea={safeAreaInsets}
               background={minimapBackground}
+              cornerRadius={minimapCornerRadius}
             />
           )}
         </View>
