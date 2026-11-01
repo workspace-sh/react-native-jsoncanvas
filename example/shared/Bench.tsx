@@ -2,7 +2,8 @@
 // 2,000 and 5,000 mixed nodes (generateCanvas.ts), each fitted, left to
 // settle, then moved by a script on the UI thread as a pinch and then a pan
 // move it: 4 s of pinch-zoom about the centre (drawn from the recorded
-// picture, as a pinch is), 4 s of pan (drawn live). Frame times are recorded
+// picture, as a pinch is), 4 s of pan, and 4 s of pan zoomed in 8 times
+// (few enough nodes near the viewport to be drawn live). Frame times are recorded
 // on the UI thread (each frame's time since the last) and on the JavaScript
 // thread (requestAnimationFrame), and summed up as frames per second, the
 // 95th percentile, and frames over 25 ms (a dropped frame at 60 Hz).
@@ -35,6 +36,8 @@ export interface BenchRow {
   pinchJs: Stats;
   panUi: Stats;
   panJs: Stats;
+  closeUi: Stats;
+  closeJs: Stats;
 }
 
 /** `histogram`: frames by their time in whole ms; `total`: their exact times added up. */
@@ -123,7 +126,7 @@ export function Bench({autorun = true, label}: {autorun?: boolean; label: string
 
   /** One phase: the UI thread's frames from the frame callback, the JS thread's from requestAnimationFrame. */
   const measure = useCallback(
-    async (which: 1 | 2): Promise<{ui: Stats; js: Stats}> => {
+    async (which: 1 | 2 | 3): Promise<{ui: Stats; js: Stats}> => {
       histogram.value = new Array(BUCKETS).fill(0);
       total.value = 0;
       const js = new Array(BUCKETS).fill(0);
@@ -192,14 +195,23 @@ export function Bench({autorun = true, label}: {autorun?: boolean; label: string
       start.value = {tx: cam.translateX.value, ty: cam.translateY.value, s: cam.scale.value};
       setStatus(`${nodes} nodes: pan`);
       const pan = await measure(2);
-      const row = {nodes, readyMs, pinchUi: pinch.ui, pinchJs: pinch.js, panUi: pan.ui, panJs: pan.js};
+      setStatus(`${nodes} nodes: pan zoomed in`);
+      const {w, h} = viewport.value;
+      const s = cam.scale.value;
+      cam.scale.value = s * 8;
+      cam.translateX.value = w / 2 - (w / 2 - cam.translateX.value) * 8;
+      cam.translateY.value = h / 2 - (h / 2 - cam.translateY.value) * 8;
+      await wait(1500);
+      start.value = {tx: cam.translateX.value, ty: cam.translateY.value, s: cam.scale.value};
+      const close = await measure(3);
+      const row = {nodes, readyMs, pinchUi: pinch.ui, pinchJs: pinch.js, panUi: pan.ui, panJs: pan.js, closeUi: close.ui, closeJs: close.js};
       out.push(row);
       setRows([...out]);
       console.warn(`[BENCH] ${label} ${JSON.stringify(row)}`);
     }
     setStatus('Done');
     setSize(null);
-  }, [label, measure, remount, start]);
+  }, [label, measure, remount, start, viewport]);
 
   useEffect(() => {
     if (autorun) void run();
@@ -226,7 +238,7 @@ export function Bench({autorun = true, label}: {autorun?: boolean; label: string
         <Text style={styles.title}>{`${label}: ${status}  ${live}`}</Text>
         {rows.map((r) => (
           <Text key={r.nodes} style={styles.row}>
-            {`${r.nodes} nodes, ready in ${r.readyMs} ms\n  pinch  UI ${cell(r.pinchUi)}\n         JS ${cell(r.pinchJs)}\n  pan    UI ${cell(r.panUi)}\n         JS ${cell(r.panJs)}`}
+            {`${r.nodes} nodes, ready in ${r.readyMs} ms\n  pinch  UI ${cell(r.pinchUi)}\n         JS ${cell(r.pinchJs)}\n  pan    UI ${cell(r.panUi)}\n         JS ${cell(r.panJs)}\n  close  UI ${cell(r.closeUi)}\n         JS ${cell(r.closeJs)}`}
           </Text>
         ))}
       </ScrollView>
@@ -237,7 +249,7 @@ export function Bench({autorun = true, label}: {autorun?: boolean; label: string
 const styles = StyleSheet.create({
   root: {flex: 1, backgroundColor: '#000'},
   canvas: {flex: 1},
-  results: {maxHeight: 260, backgroundColor: '#111'},
+  results: {maxHeight: 330, backgroundColor: '#111'},
   resultsBody: {padding: 10, gap: 6},
   title: {color: '#fff', fontWeight: '600'},
   row: {color: '#ddd', fontFamily: 'Menlo', fontSize: 11},
