@@ -11,7 +11,7 @@
 
 import {Skia, TextDecoration} from 'react-native-skia';
 import type {SkParagraph, SkTextStyle, SkColor} from 'react-native-skia';
-import type {TextSegment, SegmentStyle} from './markdown';
+import {paragraphRuns, type TextSegment, type SegmentStyle} from './markdown';
 import {getLinkColor, getMutedTextColor, getTextColor, type ColorScheme} from './theme';
 
 export interface ParagraphColours {
@@ -67,8 +67,9 @@ function toSkTextStyle(style: SegmentStyle, c: ParagraphColours): SkTextStyle {
 }
 
 /**
- * Build a laid-out SkParagraph from parsed markdown segments. Block-level
- * segments are separated by newlines; no trailing newline is emitted.
+ * Build a laid-out SkParagraph from parsed markdown segments: a new line for
+ * each block, and bold, code or a link inside a sentence on its line
+ * (`paragraphRuns`). No trailing newline is emitted.
  */
 export function buildParagraph(
   segments: TextSegment[],
@@ -81,12 +82,13 @@ export function buildParagraph(
     textStyle: {fontSize: 13, color: colours.text, fontFamilies: ['System']},
   });
 
-  for (let i = 0; i < segments.length; i++) {
-    const seg = segments[i];
-    if (i > 0) builder.addText('\n');
-    if (seg.style.isBlank) continue;
-    builder.pushStyle(toSkTextStyle(seg.style, colours));
-    builder.addText(seg.text);
+  for (const run of paragraphRuns(segments)) {
+    if ('lineBreak' in run) {
+      builder.addText('\n');
+      continue;
+    }
+    builder.pushStyle(toSkTextStyle(run.style, colours));
+    builder.addText(run.text);
     builder.pop();
   }
 
