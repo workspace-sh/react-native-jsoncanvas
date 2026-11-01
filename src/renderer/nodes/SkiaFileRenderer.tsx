@@ -3,7 +3,7 @@ import {Text, RoundedRect, matchFont} from 'react-native-skia';
 import type {FileNode} from '../../core';
 import {getChipBackground, getMutedTextColor, getTextColor, type ColorScheme} from '../theme';
 import {CHIP, LABEL} from '../metrics';
-import {hasInlineLabel, isImageFile} from '../utils/fileNodeLabel';
+import {hasInlineLabel, isImageFile, type ImageNames} from '../utils/fileNodeLabel';
 
 interface Props {
   node: FileNode;
@@ -15,6 +15,8 @@ interface Props {
    * nodes, whose label is otherwise hidden — see the module comment.
    */
   revealed?: boolean;
+  /** Whether image names show in the card or only when revealed. */
+  imageNames?: ImageNames;
 }
 
 let _nameFont: ReturnType<typeof matchFont> | null = null;
@@ -48,7 +50,7 @@ function getSubpathFont() {
  * for the live tree during a pinch, and a hover chip baked into it would
  * freeze mid-gesture. Hover is a live-tree-only affordance.
  */
-function SkiaFileRendererView({node, colorScheme, offsetX, offsetY, revealed = false}: Props) {
+function SkiaFileRendererView({node, colorScheme, offsetX, offsetY, revealed = false, imageNames = 'onReveal'}: Props) {
   const nameFont = getNameFont();
   const subpathFont = getSubpathFont();
   if (!nameFont) return null;
@@ -57,7 +59,7 @@ function SkiaFileRendererView({node, colorScheme, offsetX, offsetY, revealed = f
   const mutedColor = getMutedTextColor(colorScheme);
   const fileName = node.file.split('/').pop() ?? node.file;
   const isImage = isImageFile(node.file);
-  const inline = hasInlineLabel(node);
+  const inline = hasInlineLabel(node, imageNames);
 
   const labelX = node.x + offsetX + node.width / 2;
   const nameWidth = nameFont.measureText(fileName).width;
