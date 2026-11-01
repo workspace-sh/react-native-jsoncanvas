@@ -71,7 +71,8 @@ export const scrollWheelEvents = ScrollWheelBridge
   ? new NativeEventEmitter(ScrollWheelBridge)
   : null;
 
-// Library-shipped gesture bridge. Emits two events:
+// Library-shipped gesture bridge. Emits these events (and `onMouseMoved` and
+// `onContextClick` while asked for, below):
 //
 //   - `onSmartMagnify` — trackpad two-finger double-tap (Safari Smart Zoom),
 //     consumed by the canvas to drive zoom-to-node.
@@ -98,4 +99,19 @@ export const jsonCanvasGestureEvents = JsonCanvasGestureModule
  */
 export function setHoverTracking(enabled: boolean): void {
   JsonCanvasGestureModule?.setHoverTracking(enabled);
+}
+
+/**
+ * Start / stop `onContextClick` delivery (a right-click or a Control-click,
+ * in window coordinates with a top-left origin). No-op off macOS. Counted:
+ * each `true` is matched by a `false`.
+ */
+export function setContextClickTracking(enabled: boolean): void {
+  JsonCanvasGestureModule?.setContextClickTracking?.(enabled);
+}
+
+/** A context click, as `onContextClick` sends it: window coordinates, top-left origin. */
+export interface ContextClickEvent {
+  x: number;
+  y: number;
 }

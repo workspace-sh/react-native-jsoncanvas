@@ -18,6 +18,8 @@ import {
   jsonCanvasGestureEvents,
   scrollWheelEvents,
   setHoverTracking,
+  setContextClickTracking,
+  type ContextClickEvent,
   type MouseMovedEvent,
   type ScrollWheelEvent,
   type SmartMagnifyEvent,
@@ -157,6 +159,15 @@ interface Props {
    */
   onNodeLongPress?: (node: CanvasNode, press: NodeLongPress) => void;
   /**
+   * A node was right-clicked or Control-clicked (the Mac): where a host
+   * shows its own context menu for the node, told as `onNodeLongPress` is.
+   * A click on empty canvas, or over the left overlay, reports nothing. A
+   * host with its own `ScrollWheelBridge` sends the clicks itself, as
+   * `onContextClick` in the canvas's coordinates; otherwise the library's
+   * bridge watches the window for them.
+   */
+  onNodeContextMenu?: (node: CanvasNode, press: NodeLongPress) => void;
+  /**
    * A strip along the view's left edge, in points, where a drag doesn't pan
    * the canvas but is left to the system: iOS's swipe back, when the canvas
    * is a screen in a navigation stack. Taps and pinches there still reach
@@ -224,7 +235,7 @@ const CAMERA_ANIM_DURATION_MS = 300;
  * break rendering). Content changes flow through React reconciliation via
  * useMemo/useLayoutEffect on the content prop.
  */
-export function CanvasView({content, basePath, initialViewState, onViewStateChange, onReady, doubleTapMaxDelayMs, minimap = 'bottom-right', minimapBottomInset = 0, safeAreaInsets, leftOverlayWidth, minimapBackground, minimapCornerRadius, minimapSize, imageNames = 'onReveal', onNodeLongPress, systemEdge = 0}: Props) {
+export function CanvasView({content, basePath, initialViewState, onViewStateChange, onReady, doubleTapMaxDelayMs, minimap = 'bottom-right', minimapBottomInset = 0, safeAreaInsets, leftOverlayWidth, minimapBackground, minimapCornerRadius, minimapSize, imageNames = 'onReveal', onNodeLongPress, onNodeContextMenu, systemEdge = 0}: Props) {
   // `useWindowDimensions` returns the whole application window — on desktop
   // that includes the sidebar pane that sits to the left of the canvas
   // viewport. Computing "centre" against full-window dimensions lands the
@@ -901,25 +912,68 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
   const nameRevealed = useSharedValue(false);
   const onNodeLongPressRef = useRef(onNodeLongPress);
   onNodeLongPressRef.current = onNodeLongPress;
-  const revealAt = useCallback((x: number, y: number) => {
+  /** The node under a point in the view (smallest-area-wins, as double-tap and hover: a file node in a group means the file node). */
+  const nodeAt = useCallback((x: number, y: number): CanvasNode | null => {
     const wx = (x - translateX.value) / scale.value;
     const wy = (y - translateY.value) / scale.value;
     const hits = canvasState?.hitTest(wx, wy) ?? [];
-    // Smallest-area-wins, as double-tap and hover: a file node in a group means the file node.
-    const hit = hits.length > 0 ? hits.reduce((a, b) => (a.width * a.height < b.width * b.height ? a : b)) : null;
+    return hits.length > 0 ? hits.reduce((a, b) => (a.width * a.height < b.width * b.height ? a : b)) : null;
+  }, [canvasState, translateX, translateY, scale]);
+  /** A press on `node` at a point in the view, as a host is told it. */
+  const pressOn = useCallback((node: CanvasNode, x: number, y: number): NodeLongPress | null => {
+    if (!canvasState) return null;
+    const s = scale.value;
+    const frame = {x: node.x * s + translateX.value, y: node.y * s + translateY.value, width: node.width * s, height: node.height * s};
+    return {at: {x, y}, frame, contents: nodeContents(node, canvasState)};
+  }, [canvasState, translateX, translateY, scale]);
+  const revealAt = useCallback((x: number, y: number) => {
+    const hit = nodeAt(x, y);
     const host = onNodeLongPressRef.current;
     if (host) {
-      if (!hit || !canvasState) return;
-      const s = scale.value;
-      const frame = {x: hit.x * s + translateX.value, y: hit.y * s + translateY.value, width: hit.width * s, height: hit.height * s};
-      host(hit, {at: {x, y}, frame, contents: nodeContents(hit, canvasState)});
+      const press = hit ? pressOn(hit, x, y) : null;
+      if (hit && press) host(hit, press);
       return;
     }
     const fileId = hit?.type === 'file' ? hit.id : null;
     hoveredFileNodeIdRef.current = fileId;
     setHoveredFileNodeId(fileId);
     nameRevealed.value = fileId !== null;
-  }, [canvasState, translateX, translateY, scale, nameRevealed]);
+  }, [nodeAt, pressOn, nameRevealed]);
+
+  // Right-click or Control-click, on the Mac: tells the host (its own
+  // context menu), as a long-press does on a touch screen. From the same
+  // source as the trackpad double-tap: a host's `ScrollWheelBridge` if it
+  // has one, in the canvas's own coordinates and only for clicks on it;
+  // else the library's bridge, window-wide (asked for only while a host
+  // listens), less the canvas's place in the window.
+  const onNodeContextMenuRef = useRef(onNodeContextMenu);
+  onNodeContextMenuRef.current = onNodeContextMenu;
+  const wantsContextClicks = onNodeContextMenu !== undefined;
+  useEffect(() => {
+    const source = scrollWheelEvents ?? jsonCanvasGestureEvents;
+    if (!source || !wantsContextClicks) return;
+    const isLibraryBridge = source === jsonCanvasGestureEvents;
+    if (isLibraryBridge) setContextClickTracking(true);
+    const sub = source.addListener('onContextClick', (raw: unknown) => {
+      const event = raw as ContextClickEvent;
+      let x = event.x;
+      let y = event.y;
+      if (isLibraryBridge) {
+        const origin = canvasOriginRef.current;
+        x -= origin.x;
+        y -= origin.y;
+        if (x < (leftOverlayWidth?.value ?? 0) || y < 0 || x > origin.width || y > origin.height) return;
+      }
+      const host = onNodeContextMenuRef.current;
+      const hit = nodeAt(x, y);
+      const press = hit ? pressOn(hit, x, y) : null;
+      if (host && hit && press) host(hit, press);
+    });
+    return () => {
+      sub.remove();
+      if (isLibraryBridge) setContextClickTracking(false);
+    };
+  }, [wantsContextClicks, nodeAt, pressOn, leftOverlayWidth]);
   const hideRevealed = useCallback(() => {
     if (Platform.OS === 'macos') return; // the Mac's chip follows the pointer
     hoveredFileNodeIdRef.current = null;

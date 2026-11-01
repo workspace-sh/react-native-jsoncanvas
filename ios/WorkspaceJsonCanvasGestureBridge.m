@@ -18,6 +18,9 @@
 // class for why it isn't tied to the emitter's listener lifecycle.
 RCT_EXTERN_METHOD(setHoverTracking:(BOOL)enabled)
 
+// Context clicks (`onContextClick`) are opt-in too, for a host's node menu.
+RCT_EXTERN_METHOD(setContextClickTracking:(BOOL)enabled)
+
 @end
 
 #endif

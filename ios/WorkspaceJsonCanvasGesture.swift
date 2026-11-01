@@ -11,6 +11,11 @@
 //     wheel). Forwarded as `onScrollWheel` with `deltaX`/`deltaY`. RNGH's
 //     `Gesture.Pan()` on macOS only sees click-and-drag mouse events.
 //
+//   - A right-click, or a Control-click (the Mac's context click). Forwarded
+//     as `onContextClick` with the same window-coord contract as
+//     `onSmartMagnify`, for a host's menu on a node (`onNodeContextMenu`).
+//     Opt-in, like hover.
+//
 //   - `NSEvent.EventType.mouseMoved` (pointer position, for hover). Forwarded
 //     as `onMouseMoved` with the same window-coord contract as
 //     `onSmartMagnify`. RNGH's macOS hover handler reports only
@@ -58,6 +63,12 @@ class WorkspaceJsonCanvasGesture: RCTEventEmitter {
   // the window, where the other two fire only on deliberate gestures. A
   // consumer that never reveals anything on hover shouldn't pay for that.
   private var mouseMovedMonitor: Any?
+
+  // Context clicks: opt-in (`setContextClickTracking`), counted, since every
+  // canvas on screen with a host's menu asks for them and one leaving must
+  // not stop them for the rest.
+  private var contextClickMonitor: Any?
+  private var contextClickUsers = 0
   private var lastHoverEmit: TimeInterval = 0
   // Explicit CGFloat: NSPoint's initialisers are overloaded, so a bare
   // `.greatestFiniteMagnitude` is ambiguous and fails to compile.
@@ -84,7 +95,7 @@ class WorkspaceJsonCanvasGesture: RCTEventEmitter {
   @objc override static func requiresMainQueueSetup() -> Bool { true }
 
   override func supportedEvents() -> [String] {
-    ["onSmartMagnify", "onScrollWheel", "onMouseMoved"]
+    ["onSmartMagnify", "onScrollWheel", "onMouseMoved", "onContextClick"]
   }
 
   /// Start / stop forwarding pointer positions as `onMouseMoved`.
@@ -102,6 +113,45 @@ class WorkspaceJsonCanvasGesture: RCTEventEmitter {
       } else {
         self?.removeMouseMovedMonitor()
       }
+    }
+  }
+
+  /// Start / stop forwarding context clicks as `onContextClick`. Each call
+  /// with `true` is matched by one with `false`; the monitor stays while any
+  /// canvas wants it.
+  @objc func setContextClickTracking(_ enabled: Bool) {
+    DispatchQueue.main.async { [weak self] in
+      guard let self = self else { return }
+      self.contextClickUsers = max(0, self.contextClickUsers + (enabled ? 1 : -1))
+      if self.contextClickUsers > 0 {
+        self.installContextClickMonitor()
+      } else if let monitor = self.contextClickMonitor {
+        NSEvent.removeMonitor(monitor)
+        self.contextClickMonitor = nil
+      }
+    }
+  }
+
+  private func installContextClickMonitor() {
+    guard contextClickMonitor == nil else { return }
+    contextClickMonitor = NSEvent.addLocalMonitorForEvents(
+      matching: [.rightMouseDown, .leftMouseDown]
+    ) { [weak self] event in
+      guard let self = self, self.hasListeners else { return event }
+      // A Control-click is the Mac's other context click; a plain click isn't one.
+      if event.type == .leftMouseDown && !event.modifierFlags.contains(.control) { return event }
+      // The main window only: a click in a panel or sheet is over something
+      // else, whatever its coordinates say.
+      guard let window = event.window, window.isMainWindow,
+            let windowHeight = window.contentView?.bounds.height else { return event }
+      let pointInWindow = event.locationInWindow
+      self.sendEvent(withName: "onContextClick", body: [
+        "x": pointInWindow.x,
+        "y": windowHeight - pointInWindow.y,
+      ])
+      // Never consume: the canvas decides in JS whether a node is under the
+      // click, and anything else in the window keeps its own context menu.
+      return event
     }
   }
 
@@ -286,6 +336,9 @@ class WorkspaceJsonCanvasGesture: RCTEventEmitter {
 
   deinit {
     removeMonitors()
+    if let monitor = contextClickMonitor {
+      NSEvent.removeMonitor(monitor)
+    }
   }
 }
 
