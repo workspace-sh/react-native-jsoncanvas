@@ -13,6 +13,8 @@ import {GestureHandlerRootView} from 'react-native-gesture-handler';
 import {useFrameCallback, useSharedValue, type SharedValue} from 'react-native-reanimated';
 import {CanvasView, type CanvasCamera} from '@workspace.sh/react-native-jsoncanvas';
 import {generateCanvas} from './generateCanvas';
+import {SAMPLE_CANVAS} from './fixtures';
+import {BENCH_REMOUNTS} from './benchConfig';
 
 const SIZES = [500, 2000, 5000];
 const SETTLE_MS = 2500;
@@ -150,7 +152,23 @@ export function Bench({autorun = true, label}: {autorun?: boolean; label: string
     [histogram, phase, t0, total],
   );
 
+  /** Mounts and unmounts the sample canvas `times` times, then leaves it shown: a remount must still draw. */
+  const remount = useCallback(async (times: number) => {
+    for (let i = 1; i <= times; i++) {
+      setStatus(`remount ${i} of ${times}`);
+      setContent(SAMPLE_CANVAS);
+      setSize(i);
+      await wait(400);
+      setSize(null);
+      await wait(150);
+    }
+    setContent(SAMPLE_CANVAS);
+    setSize(times + 1);
+    setStatus(`remounted ${times} times, now shown`);
+  }, []);
+
   const run = useCallback(async () => {
+    if (BENCH_REMOUNTS > 0) return remount(BENCH_REMOUNTS);
     const out: BenchRow[] = [];
     for (const nodes of SIZES) {
       setStatus(`${nodes} nodes: opening`);
@@ -181,7 +199,7 @@ export function Bench({autorun = true, label}: {autorun?: boolean; label: string
     }
     setStatus('Done');
     setSize(null);
-  }, [label, measure, start]);
+  }, [label, measure, remount, start]);
 
   useEffect(() => {
     if (autorun) void run();
