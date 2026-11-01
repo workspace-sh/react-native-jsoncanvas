@@ -151,48 +151,32 @@ export function getBrokenImageSvg(): {
  * Returns `null` while loading. Once resolved, returns `ValidatedSvg`.
  */
 export function useValidatedSvg(uri: string | null): ValidatedSvg | null {
-  const [result, setResult] = useState<ValidatedSvg | null>(null);
+  // Starts from the cache, so an SVG scrolling back into view (culling
+  // mounts it again) draws at once, with no fetch, no parse and no second
+  // commit of the Skia tree.
+  const [result, setResult] = useState<ValidatedSvg | null>(() => (uri ? cached.get(uri) ?? null : INVALID));
 
   useEffect(() => {
     if (!uri) {
-      setResult({valid: false});
+      setResult(INVALID);
+      return;
+    }
+    const hit = cached.get(uri);
+    if (hit) {
+      setResult(hit);
       return;
     }
 
     let cancelled = false;
     setResult(null);
-
-    (async () => {
-      try {
-        const response = await fetch(uri);
-        if (!response.ok) {
-          if (!cancelled) setResult({valid: false});
-          return;
-        }
-        const rawText = await response.text();
-        if (!SVG_ROOT_RE.test(rawText)) {
-          if (!cancelled) setResult({valid: false});
-          return;
-        }
-        const text = preprocessSvgForSkia(rawText);
-        const intrinsic = extractSvgIntrinsicSize(text);
-        const svg = Skia.SVG.MakeFromString(text);
-        if (!svg || !intrinsic) {
-          if (!cancelled) setResult({valid: false});
-          return;
-        }
-        if (!cancelled) {
-          setResult({
-            valid: true,
-            svg,
-            intrinsicWidth: intrinsic.width,
-            intrinsicHeight: intrinsic.height,
-          });
-        }
-      } catch {
-        if (!cancelled) setResult({valid: false});
-      }
-    })();
+    loadOnce(uri).then(
+      (loaded) => {
+        if (!cancelled) setResult(loaded);
+      },
+      () => {
+        if (!cancelled) setResult(INVALID);
+      },
+    );
 
     return () => {
       cancelled = true;
@@ -200,4 +184,46 @@ export function useValidatedSvg(uri: string | null): ValidatedSvg | null {
   }, [uri]);
 
   return result;
+}
+
+const INVALID: ValidatedSvg = {valid: false};
+
+/** SVGs loaded so far, by URI, oldest first; at most `MAX_CACHED`. Only good loads are kept, so a failed one is tried again. */
+const cached = new Map<string, ValidatedSvg>();
+const MAX_CACHED = 200;
+/** Loads under way, so several nodes showing one SVG fetch it once. */
+const loading = new Map<string, Promise<ValidatedSvg>>();
+
+function loadOnce(uri: string): Promise<ValidatedSvg> {
+  let pending = loading.get(uri);
+  if (!pending) {
+    pending = loadSvg(uri)
+      .then((loaded) => {
+        if (loaded.valid) {
+          cached.set(uri, loaded);
+          if (cached.size > MAX_CACHED) cached.delete(cached.keys().next().value!);
+        }
+        return loaded;
+      })
+      .finally(() => loading.delete(uri));
+    loading.set(uri, pending);
+  }
+  return pending;
+}
+
+/** Fetches, checks and parses one SVG; never throws. */
+async function loadSvg(uri: string): Promise<ValidatedSvg> {
+  try {
+    const response = await fetch(uri);
+    if (!response.ok) return INVALID;
+    const rawText = await response.text();
+    if (!SVG_ROOT_RE.test(rawText)) return INVALID;
+    const text = preprocessSvgForSkia(rawText);
+    const intrinsic = extractSvgIntrinsicSize(text);
+    const svg = Skia.SVG.MakeFromString(text);
+    if (!svg || !intrinsic) return INVALID;
+    return {valid: true, svg, intrinsicWidth: intrinsic.width, intrinsicHeight: intrinsic.height};
+  } catch {
+    return INVALID;
+  }
 }

@@ -1039,8 +1039,6 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
             viewportWidth={viewportWidth}
             viewportHeight={viewportHeight}
             basePath={basePath}
-            isPinching={isPinching}
-            isCameraAnimating={isCameraAnimating}
             hoveredFileNodeId={hoveredFileNodeId}
           />
           {minimap !== 'hidden' && allNodes.length > 0 && (
