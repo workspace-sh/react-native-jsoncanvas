@@ -6,7 +6,6 @@ import type {CanvasNode, CanvasEdge} from '../core';
 import {getCanvasBackground, getMinimapColors, type ColorScheme} from './theme';
 import {hasCssClasses, enrichNodes, type EnrichedNode} from './extensions/cssclasses';
 import {recordShapesPicture} from './useCanvasPicture';
-import {CanvasGlass} from './CanvasGlass';
 
 export type MinimapPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 
@@ -27,17 +26,13 @@ interface Props {
   /** The screen's safe area: the minimap keeps inside it, on every side. */
   safeArea?: Insets;
   /**
-   * The host's material to sit on, in place of the default: Liquid Glass on
-   * the Mac (CanvasGlass), a drawn background and border elsewhere.
+   * The host's material to sit on (its glass, say), in place of the drawn
+   * background and border: how the minimap looks is the host's.
    */
   background?: (size: {width: number; height: number}) => React.ReactNode;
+  /** Its corners' radius, in points: the drawn background's, and what clips the host's. */
+  cornerRadius?: number;
 }
-
-/** The Mac's default minimap background: Liquid Glass, as the window's other floating controls. */
-const macGlass = ({width, height}: {width: number; height: number}) => (
-  <CanvasGlass cornerRadius={BORDER_RADIUS_GLASS} style={{width, height}} />
-);
-const BORDER_RADIUS_GLASS = 12;
 
 const EDGE_PADDING = 12;
 const INNER_PADDING = 8;
@@ -113,9 +108,9 @@ export function CanvasMinimap({
   leftOverlayWidth,
   bottomInset = 0,
   safeArea = NO_INSETS,
-  background: hostBackground,
+  background,
+  cornerRadius = BORDER_RADIUS,
 }: Props) {
-  const background = hostBackground ?? (Platform.OS === 'macos' ? macGlass : undefined);
   const bounds = useMemo(() => (nodes.length > 0 ? contentBounds(nodes) : null), [nodes]);
   const size = useMemo(() => getMinimapSize(bounds ? bounds.width / bounds.height : 1), [bounds]);
   // Typed rather than inline so a mistyped key fails the build instead of
@@ -205,15 +200,15 @@ export function CanvasMinimap({
       pointerEvents="none"
       style={[styles.container, getPositionStyle(position, bottomInset, safeArea), {width: size.width, height: size.height}]}
     >
-      {background ? <View style={[StyleSheet.absoluteFill, styles.background, Platform.OS === 'macos' && styles.backgroundMac]}>{background(size)}</View> : null}
+      {background ? <View style={[StyleSheet.absoluteFill, styles.background, {borderRadius: cornerRadius}]}>{background(size)}</View> : null}
       <Canvas style={canvasStyle}>
         {background ? null : (
           <>
-            <RoundedRect x={0} y={0} width={size.width} height={size.height} r={BORDER_RADIUS} color={bgColor} />
+            <RoundedRect x={0} y={0} width={size.width} height={size.height} r={cornerRadius} color={bgColor} />
             <RoundedRect
               x={0.5} y={0.5}
               width={size.width - 1} height={size.height - 1}
-              r={BORDER_RADIUS - 0.5}
+              r={Math.max(0, cornerRadius - 0.5)}
               color={borderColor}
               style="stroke" strokeWidth={1}
             />
@@ -236,9 +231,6 @@ export function CanvasMinimap({
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-  },
-  backgroundMac: {
-    borderRadius: BORDER_RADIUS_GLASS,
   },
   background: {
     borderRadius: BORDER_RADIUS,
