@@ -15,6 +15,7 @@ import {SkiaImageRenderer} from './nodes/SkiaImageRenderer';
 import {SkiaGroupLabelRenderer} from './nodes/SkiaGroupLabelRenderer';
 import type {ColorScheme} from './theme';
 import {useCanvasPicture} from './useCanvasPicture';
+import type {ImageNames} from './utils/fileNodeLabel';
 import {devFlags} from './devFlags';
 
 // Module-level: matches any file ending in `.svg` (case-insensitive). Stable
@@ -61,6 +62,8 @@ interface SkiaCanvasLayerProps {
    * reconcile anyway.
    */
   hoveredFileNodeId?: string | null;
+  /** Whether image names show in their cards or only when revealed (CanvasView's `imageNames`). */
+  imageNames?: ImageNames;
 }
 
 function useCameraMatrix(camera: CameraValues) {
@@ -91,6 +94,7 @@ export function SkiaCanvasLayer({
   viewportHeight,
   basePath,
   hoveredFileNodeId = null,
+  imageNames = 'onReveal',
 }: SkiaCanvasLayerProps) {
   const matrix = useCameraMatrix(camera);
 
@@ -105,7 +109,7 @@ export function SkiaCanvasLayer({
     () => hasCssClasses(pictureNodes) ? enrichNodes(pictureNodes) : pictureNodes as EnrichedNode[],
     [pictureNodes],
   );
-  const picture = useCanvasPicture({allNodes: enrichedPictureNodes as CanvasNode[], edges: pictureEdges, nodeMap: nodes, colorScheme, basePath});
+  const picture = useCanvasPicture({allNodes: enrichedPictureNodes as CanvasNode[], edges: pictureEdges, nodeMap: nodes, colorScheme, basePath, imageNames});
 
   // Once recorded, the canvas is drawn from the Picture (replayed on the UI
   // thread) at every zoom, and the live tree holds only what the Picture
@@ -251,10 +255,10 @@ export function SkiaCanvasLayer({
             offsetY={0}
           />
         ))}
-        {/* Always-on labels for non-image file nodes. Image file nodes
-            no-op here and get their filename from the hover chip below,
-            drawn above every other layer so a neighbouring node can't
-            occlude it. */}
+        {/* File names in their cards: always for non-image file nodes, and
+            for image ones when imageNames is 'always'. Otherwise an image's
+            name is the reveal chip below (hover, or a long-press), drawn
+            above every other layer so a neighbouring node can't occlude it. */}
         {liveFileNodes.map(node => (
           <SkiaFileRenderer
             key={node.id}
@@ -262,6 +266,7 @@ export function SkiaCanvasLayer({
             colorScheme={colorScheme}
             offsetX={0}
             offsetY={0}
+            imageNames={imageNames}
           />
         ))}
         {nonSvgFileNodes.map(node => (
@@ -271,6 +276,7 @@ export function SkiaCanvasLayer({
             offsetX={0}
             offsetY={0}
             basePath={basePath}
+            imageNames={imageNames}
           />
         ))}
         {labelledGroups.map(node => (
@@ -292,9 +298,10 @@ export function SkiaCanvasLayer({
             offsetX={0}
             offsetY={0}
             basePath={basePath}
+            imageNames={imageNames}
           />
         ))}
-        {/* --- Hover chip (topmost; live tree only, never recorded) --- */}
+        {/* --- Reveal chip (hover or long-press; topmost, live tree only, never recorded) --- */}
         {hoveredFileNode && (
           <SkiaFileRenderer
             key={`hover-${hoveredFileNode.id}`}

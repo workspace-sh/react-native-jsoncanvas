@@ -4,7 +4,7 @@ import type {FileNode} from '../../core';
 import {devFlags} from '../devFlags';
 import {resolveFileUri} from '../utils/resolveFileUri';
 import {useValidatedSvg, getBrokenImageSvg, type ValidatedSvg} from '../utils/useValidatedSvg';
-import {hasInlineLabel} from '../utils/fileNodeLabel';
+import {hasInlineLabel, type ImageNames} from '../utils/fileNodeLabel';
 import {FILE_IMAGE} from '../metrics';
 
 interface Props {
@@ -13,6 +13,8 @@ interface Props {
   offsetY: number;
   /** Directory containing the .canvas file — used to resolve relative `file` paths. */
   basePath?: string;
+  /** Whether image names show in the card, so whether room is left for one. */
+  imageNames?: ImageNames;
 }
 
 const IMAGE_RE = /\.(png|jpg|jpeg|gif|webp|bmp|ico)$/i;
@@ -21,13 +23,13 @@ const SVG_RE = /\.svg$/i;
 /** Compute the destination box (inside the file node's bounds, padded for the
  *  filename label where one is drawn) into which the image content is fit.
  *
- *  The label reservation is conditional: on platforms that reveal filenames
- *  on demand rather than inline, subtracting it would push the image up the
- *  card to clear space nothing occupies. `drawFileImage` in `useCanvasPicture`
+ *  The label reservation is conditional: where image names are shown only
+ *  on demand (`imageNames`), subtracting it would push the image up the card
+ *  to clear space nothing occupies. `drawFileImage` in `useCanvasPicture`
  *  computes the same box — they must agree or the Picture overlay places the
  *  image somewhere the live tree doesn't. */
-function destBox(node: FileNode, offsetX: number, offsetY: number) {
-  const labelSpace = hasInlineLabel(node) ? FILE_IMAGE.labelSpace : 0;
+function destBox(node: FileNode, offsetX: number, offsetY: number, imageNames: ImageNames | undefined) {
+  const labelSpace = hasInlineLabel(node, imageNames) ? FILE_IMAGE.labelSpace : 0;
   const x = node.x + offsetX + FILE_IMAGE.margin;
   const y = node.y + offsetY + FILE_IMAGE.margin;
   const w = Math.max(0, node.width - FILE_IMAGE.margin * 2);
@@ -73,10 +75,10 @@ function BrokenImage({x, y, w, h}: {x: number; y: number; w: number; h: number})
   return renderSvg(broken.svg, broken.intrinsicWidth, broken.intrinsicHeight, x, y, w, h);
 }
 
-function SkiaRasterImage({node, offsetX, offsetY, basePath}: Props) {
+function SkiaRasterImage({node, offsetX, offsetY, basePath, imageNames}: Props) {
   const uri = resolveFileUri(node.file, basePath);
   const image: SkImage | null = useImage(uri);
-  const {x, y, w, h} = destBox(node, offsetX, offsetY);
+  const {x, y, w, h} = destBox(node, offsetX, offsetY, imageNames);
   if (w === 0 || h === 0) return null;
 
   // No URI (relative path with no basePath) is a known-failed load — show the
@@ -100,10 +102,10 @@ function SkiaRasterImage({node, offsetX, offsetY, basePath}: Props) {
   );
 }
 
-function SkiaSvgImage({node, offsetX, offsetY, basePath}: Props) {
+function SkiaSvgImage({node, offsetX, offsetY, basePath, imageNames}: Props) {
   const uri = resolveFileUri(node.file, basePath);
   const result: ValidatedSvg | null = useValidatedSvg(uri);
-  const {x, y, w, h} = destBox(node, offsetX, offsetY);
+  const {x, y, w, h} = destBox(node, offsetX, offsetY, imageNames);
   if (w === 0 || h === 0) return null;
 
   if (result === null) return null; // still loading

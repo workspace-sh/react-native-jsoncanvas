@@ -1,5 +1,5 @@
 import React, {useEffect, useMemo, useState} from 'react';
-import {View, Platform, StyleSheet, type ViewStyle} from 'react-native';
+import {View, StyleSheet, type ViewStyle} from 'react-native';
 import {Canvas, Rect, RoundedRect, Group, Picture, processTransform3d, type SkPicture} from 'react-native-skia';
 import {useDerivedValue, type SharedValue} from 'react-native-reanimated';
 import type {CanvasNode, CanvasEdge} from '../core';
@@ -32,24 +32,23 @@ interface Props {
   background?: (size: {width: number; height: number}) => React.ReactNode;
   /** Its corners' radius, in points: the drawn background's, and what clips the host's. */
   cornerRadius?: number;
+  /** Its size for a canvas wider than it's tall (160×120 by default); turned upright for a taller one. */
+  size?: {width: number; height: number};
 }
 
 const EDGE_PADDING = 12;
 const INNER_PADDING = 8;
 const BORDER_RADIUS = 6;
-const DESKTOP_SIZE = {width: 200, height: 150};
-const MOBILE_SIZE = {width: 120, height: 90};
+const DEFAULT_SIZE = {width: 160, height: 120};
 const VIEWPORT_STROKE_WIDTH = 1.5;
 const WORLD_PADDING = 50;
-const MACOS_CONTROLS_INSET = 56;
 
 /**
  * The minimap's box: landscape for a canvas wider than it's tall, portrait
  * for a taller one, so the canvas fills as much of it as it can.
  */
-function getMinimapSize(contentAspect: number) {
-  const size = Platform.OS === 'macos' || Platform.OS === 'web' ? DESKTOP_SIZE : MOBILE_SIZE;
-  return contentAspect < 1 ? {width: size.height, height: size.width} : size;
+function getMinimapSize(contentAspect: number, base: {width: number; height: number}) {
+  return contentAspect < 1 ? {width: base.height, height: base.width} : base;
 }
 
 /** The nodes' bounds, with a margin, in world units. */
@@ -73,11 +72,10 @@ export type Insets = {top: number; right: number; bottom: number; left: number};
 export const NO_INSETS: Insets = {top: 0, right: 0, bottom: 0, left: 0};
 
 function getPositionStyle(position: MinimapPosition, bottomInset: number, safe: Insets): ViewStyle {
-  const platformBottom = Platform.OS === 'macos' ? MACOS_CONTROLS_INSET : 0;
   const top = EDGE_PADDING + safe.top;
   const left = EDGE_PADDING + safe.left;
   const right = EDGE_PADDING + safe.right;
-  const bottom = EDGE_PADDING + safe.bottom + platformBottom + bottomInset;
+  const bottom = EDGE_PADDING + safe.bottom + bottomInset;
   switch (position) {
     case 'top-left':     return {top, left};
     case 'top-right':    return {top, right};
@@ -110,9 +108,14 @@ export function CanvasMinimap({
   safeArea = NO_INSETS,
   background,
   cornerRadius = BORDER_RADIUS,
+  size: baseSize = DEFAULT_SIZE,
 }: Props) {
   const bounds = useMemo(() => (nodes.length > 0 ? contentBounds(nodes) : null), [nodes]);
-  const size = useMemo(() => getMinimapSize(bounds ? bounds.width / bounds.height : 1), [bounds]);
+  const size = useMemo(
+    () => getMinimapSize(bounds ? bounds.width / bounds.height : 1, baseSize),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [bounds, baseSize.width, baseSize.height],
+  );
   // Typed rather than inline so a mistyped key fails the build instead of
   // being dropped silently at runtime.
   const canvasStyle = useMemo<ViewStyle>(

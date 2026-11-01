@@ -24,6 +24,7 @@ import {
 import {resolveScheme, getMutedTextColor} from './theme';
 import {CanvasProvider} from './CanvasContext';
 import {useViewportCulling} from './useViewportCulling';
+import type {ImageNames} from './utils/fileNodeLabel';
 
 interface ViewState {
   translateX: number;
@@ -136,6 +137,23 @@ interface Props {
   /** The minimap's corner radius, in points (6 by default): its background's, drawn or the host's. */
   minimapCornerRadius?: number;
   /**
+   * The minimap's size, in points, for a canvas wider than it's tall (160×120
+   * by default); turned upright for a taller one.
+   */
+  minimapSize?: {width: number; height: number};
+  /**
+   * Whether an image file node shows its file name in its card (`'always'`)
+   * or only when revealed (`'onReveal'`, the default): hovering on the Mac,
+   * a long-press on a touch screen. The image already says what it is.
+   */
+  imageNames?: ImageNames;
+  /**
+   * A node was long-pressed (touch screens), at `at` in the view's
+   * coordinates: where a host shows its own menu for the node. An image's
+   * name is revealed either way.
+   */
+  onNodeLongPress?: (node: CanvasNode, at: {x: number; y: number}) => void;
+  /**
    * A strip along the view's left edge, in points, where a drag doesn't pan
    * the canvas but is left to the system: iOS's swipe back, when the canvas
    * is a screen in a navigation stack. Taps and pinches there still reach
@@ -154,6 +172,8 @@ const MIN_SCALE = 0.1; // 0.1 default
 const MAX_SCALE = 6.0; // 3.0 default
 const PINCH_DRIFT_DEADZONE = 10; // screen pixels
 const PINCH_NOOP_THRESHOLD = 0.02; // 2% scale change
+/** How long a press is held before it reveals a node's name (iOS's own context-menu delay is about this). */
+const LONG_PRESS_MS = 450;
 /** A pan starting this soon after a pinch ends is its leftover finger: no momentum on release. */
 const PAN_AFTER_PINCH_MS = 400;
 const PINCH_FOCAL_DELTA_CAP = 30; // max per-frame focal point shift (screen pixels)
@@ -191,7 +211,7 @@ const CAMERA_ANIM_DURATION_MS = 300;
  * break rendering). Content changes flow through React reconciliation via
  * useMemo/useLayoutEffect on the content prop.
  */
-export function CanvasView({content, basePath, initialViewState, onViewStateChange, onReady, doubleTapMaxDelayMs, minimap = 'bottom-right', minimapBottomInset = 0, safeAreaInsets, leftOverlayWidth, minimapBackground, minimapCornerRadius, systemEdge = 0}: Props) {
+export function CanvasView({content, basePath, initialViewState, onViewStateChange, onReady, doubleTapMaxDelayMs, minimap = 'bottom-right', minimapBottomInset = 0, safeAreaInsets, leftOverlayWidth, minimapBackground, minimapCornerRadius, minimapSize, imageNames = 'onReveal', onNodeLongPress, systemEdge = 0}: Props) {
   // `useWindowDimensions` returns the whole application window — on desktop
   // that includes the sidebar pane that sits to the left of the canvas
   // viewport. Computing "centre" against full-window dimensions lands the
@@ -862,6 +882,43 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
     return () => sub.remove();
   }, [canvasState, translateX, translateY, scale, isPinching, leftOverlayWidth]);
 
+  // Long-press, on a touch screen: reveals an image's name, as hovering does
+  // on the Mac, and tells the host (its own menu). The name stays until the
+  // canvas is next moved.
+  const nameRevealed = useSharedValue(false);
+  const onNodeLongPressRef = useRef(onNodeLongPress);
+  onNodeLongPressRef.current = onNodeLongPress;
+  const revealAt = useCallback((x: number, y: number) => {
+    const wx = (x - translateX.value) / scale.value;
+    const wy = (y - translateY.value) / scale.value;
+    const hits = canvasState?.hitTest(wx, wy) ?? [];
+    // Smallest-area-wins, as double-tap and hover: a file node in a group means the file node.
+    const hit = hits.length > 0 ? hits.reduce((a, b) => (a.width * a.height < b.width * b.height ? a : b)) : null;
+    const fileId = hit?.type === 'file' ? hit.id : null;
+    hoveredFileNodeIdRef.current = fileId;
+    setHoveredFileNodeId(fileId);
+    nameRevealed.value = fileId !== null;
+    if (hit) onNodeLongPressRef.current?.(hit, {x, y});
+  }, [canvasState, translateX, translateY, scale, nameRevealed]);
+  const hideRevealed = useCallback(() => {
+    if (Platform.OS === 'macos') return; // the Mac's chip follows the pointer
+    hoveredFileNodeIdRef.current = null;
+    setHoveredFileNodeId(null);
+  }, []);
+
+  const longPressGesture = useMemo(
+    () =>
+      Gesture.LongPress()
+        .minDuration(LONG_PRESS_MS)
+        .maxDistance(8)
+        .enabled(Platform.OS !== 'macos')
+        .onStart(event => {
+          'worklet';
+          scheduleOnRN(revealAt, event.x, event.y);
+        }),
+    [revealAt],
+  );
+
   // Click-and-drag to pan
   const panGesture = useMemo(
     () =>
@@ -880,6 +937,10 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
           scheduleOnRN(setLastAction, 'manual');
           prevTranslateX.value = translateX.value;
           prevTranslateY.value = translateY.value;
+          if (nameRevealed.value) {
+            nameRevealed.value = false;
+            scheduleOnRN(hideRevealed);
+          }
           panFromPinch.value = isPinching.value || Date.now() - pinchEndedAt.value < PAN_AFTER_PINCH_MS;
           panPaused.value = false;
         })
@@ -936,7 +997,7 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
             scheduleOnRN(saveViewState);
           }
         }),
-    [translateX, translateY, scale, prevTranslateX, prevTranslateY, animCancelled, setLastAction, saveViewState, systemEdge, isPinching, pinchEndedAt, panFromPinch, panPaused, bounds, viewportWidth, viewportHeight],
+    [translateX, translateY, scale, prevTranslateX, prevTranslateY, animCancelled, setLastAction, saveViewState, systemEdge, isPinching, pinchEndedAt, panFromPinch, panPaused, bounds, viewportWidth, viewportHeight, nameRevealed, hideRevealed],
   );
 
   // Trackpad pinch to zoom
@@ -955,6 +1016,10 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
           // sidebar toggle won't snap the camera back.
           scheduleOnRN(setLastAction, 'manual');
           isPinching.value = true;
+          if (nameRevealed.value) {
+            nameRevealed.value = false;
+            scheduleOnRN(hideRevealed);
+          }
           pinchStartScale.value = scale.value;
           pinchStartTx.value = translateX.value;
           pinchStartTy.value = translateY.value;
@@ -1041,7 +1106,7 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
           pinchEndedAt.value = Date.now();
           scheduleOnRN(saveViewState);
         }),
-    [scale, translateX, translateY, pinchStartScale, pinchStartTx, pinchStartTy, pinchStartFocalX, pinchStartFocalY, prevFocalX, prevFocalY, pinchScaleBase, pinchPointers, pinchEndedAt, isPinching, animCancelled, setLastAction, saveViewState],
+    [scale, translateX, translateY, pinchStartScale, pinchStartTx, pinchStartTy, pinchStartFocalX, pinchStartFocalY, prevFocalX, prevFocalY, pinchScaleBase, pinchPointers, pinchEndedAt, isPinching, animCancelled, setLastAction, saveViewState, nameRevealed, hideRevealed],
   );
 
   // Double-tap to zoom-to-node (#145). Composed via Gesture.Race(tap, pan) so
@@ -1072,8 +1137,8 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
   }, [translateX, translateY, scale, handleDoubleTap, doubleTapMaxDelayMs]);
 
   const gesture = useMemo(
-    () => Gesture.Simultaneous(pinchGesture, Gesture.Race(tapGesture, panGesture)),
-    [panGesture, pinchGesture, tapGesture],
+    () => Gesture.Simultaneous(pinchGesture, Gesture.Race(tapGesture, panGesture, longPressGesture)),
+    [panGesture, pinchGesture, tapGesture, longPressGesture],
   );
 
   const camera = useMemo(
@@ -1124,6 +1189,7 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
             viewportHeight={viewportHeight}
             basePath={basePath}
             hoveredFileNodeId={hoveredFileNodeId}
+            imageNames={imageNames}
           />
           {minimap !== 'hidden' && allNodes.length > 0 && (
             <CanvasMinimap
@@ -1141,6 +1207,7 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
               safeArea={safeAreaInsets}
               background={minimapBackground}
               cornerRadius={minimapCornerRadius}
+              size={minimapSize}
             />
           )}
         </View>
