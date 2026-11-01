@@ -1,6 +1,6 @@
 import React, {useMemo} from 'react';
 import {StyleSheet, type ViewStyle} from 'react-native';
-import {Canvas, Group, Picture, processTransform3d} from 'react-native-skia';
+import {Canvas, Group, Picture, processTransform3d, type SkPicture} from 'react-native-skia';
 import {useDerivedValue, type SharedValue} from 'react-native-reanimated';
 import type {CanvasEdge, CanvasNode, TextNode, LinkNode, FileNode, GroupNode} from '../core';
 import {hasCssClasses, enrichNodes, type EnrichedNode} from './extensions/cssclasses';
@@ -22,6 +22,13 @@ import {devFlags} from './devFlags';
 const SVG_RE = /\.svg$/i;
 
 const NONE: never[] = [];
+
+/**
+ * Below this zoom the canvas is drawn from the overview recording, without
+ * text: body text (about 14pt) would be under 1.5px high, unreadable, and
+ * drawing thousands of such glyph runs was most of a zoomed-out frame.
+ */
+const OVERVIEW_SCALE = 0.1;
 
 interface CameraValues {
   translateX: SharedValue<number>;
@@ -109,6 +116,11 @@ export function SkiaCanvasLayer({
   // Picture draws the same thing, pixel for pixel. Until it's recorded, and
   // with `devFlags.enablePictureRecording` off, the live tree draws it all.
   const showPicture = devFlags.enablePictureRecording && picture != null;
+  const shownPicture = useDerivedValue(() => {
+    'worklet';
+    if (!picture) return null;
+    return camera.scale.value < OVERVIEW_SCALE ? picture.overview : picture.full;
+  }, [picture]);
 
   const resolvedEdges = useMemo(() => {
     if (showPicture) return NONE;
@@ -271,7 +283,7 @@ export function SkiaCanvasLayer({
           />
         ))}
         {/* --- The recorded Picture: everything but SVGs and the hover chip --- */}
-        {showPicture && <Picture picture={picture!} />}
+        {showPicture && <Picture picture={shownPicture as SharedValue<SkPicture>} />}
         {/* --- Live SVG content (above Picture for vector fidelity at any zoom) --- */}
         {svgFileNodes.map(node => (
           <SkiaImageRenderer
