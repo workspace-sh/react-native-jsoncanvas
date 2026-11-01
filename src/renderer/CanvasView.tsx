@@ -554,6 +554,8 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
   // Toggle state: which node we last zoomed into. Re-tapping the same node
   // returns to fit-all; tapping a different node zooms there.
   const lastZoomedNodeId = useRef<string | null>(null);
+  /** Where the camera was before a double-tap zoomed to a node: a second double-tap goes back there. */
+  const beforeZoom = useRef<{tx: number; ty: number; s: number} | null>(null);
 
   const handleDoubleTap = useCallback((wx: number, wy: number) => {
     // Don't fight an in-flight pinch
@@ -574,8 +576,19 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
     const inset = leftOverlayWidth?.value ?? 0;
 
     if (!hit || lastZoomedNodeId.current === hit.id) {
-      fitToViewport(inset);
+      // Back to where the reader was before zooming in, as a second
+      // double-tap does in Photos or Maps. It used to fit the whole canvas,
+      // which on a small canvas looked the same (opened fitted) but on a
+      // large one landed somewhere else. With nothing to go back to, fit.
+      const back = beforeZoom.current;
+      beforeZoom.current = null;
       lastZoomedNodeId.current = null;
+      if (back) {
+        animateCamera(back.tx, back.ty, back.s);
+        lastActionRef.current = 'manual';
+        return;
+      }
+      fitToViewport(inset);
       // Double-tap is a manual / focal interaction — sidebar toggle should
       // leave the camera alone afterwards. fitToViewport set lastAction to
       // 'fit' inside its body; override here.
@@ -583,10 +596,15 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
       return;
     }
 
+    // Kept from the first zoom only: tapping from one node to the next still
+    // goes back to where the reader began.
+    if (lastZoomedNodeId.current === null) {
+      beforeZoom.current = {tx: translateX.value, ty: translateY.value, s: scale.value};
+    }
     zoomToNode(hit, inset);
     lastZoomedNodeId.current = hit.id;
     lastActionRef.current = 'manual';
-  }, [canvasState, fitToViewport, zoomToNode, isPinching, leftOverlayWidth]);
+  }, [canvasState, fitToViewport, zoomToNode, animateCamera, isPinching, leftOverlayWidth, translateX, translateY, scale]);
 
   // Recenter content at current zoom level, against the visible canvas pane.
   // See `fitToViewport` for the leftOverlayWidth rationale.
