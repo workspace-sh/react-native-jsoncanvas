@@ -10,7 +10,7 @@ import {
 } from './theme';
 import {CHIP, EDGE_LABEL, FILE_IMAGE, GROUP_LABEL, LABEL, LINK, NODE, ZONE} from './metrics';
 import {FONT_SIZE, H4, type FontConfig} from './typography';
-import {hasInlineLabel, isImageFile} from './utils/fileNodeLabel';
+import {hasInlineLabel, isImageFile, type ImageNames} from './utils/fileNodeLabel';
 import {parseToSegments, toPlainText} from './markdown';
 import {buildParagraph, getParagraphColours} from './paragraphBuilder';
 import {resolveFileUri} from './utils/resolveFileUri';
@@ -428,7 +428,7 @@ function drawGroupBackground(canvas: SkCanvas, node: GroupNode, imageCache: Imag
   canvas.restore();
 }
 
-function drawFileImage(canvas: SkCanvas, node: FileNode, imageCache: ImageCache, basePath?: string) {
+function drawFileImage(canvas: SkCanvas, node: FileNode, imageCache: ImageCache, basePath: string | undefined, imageNames: ImageNames) {
   if (!RASTER_RE.test(node.file)) return; // SVGs render live for vector fidelity
   const uri = resolveFileUri(node.file, basePath);
   if (!uri) return;
@@ -439,7 +439,7 @@ function drawFileImage(canvas: SkCanvas, node: FileNode, imageCache: ImageCache,
   // the image is pushed up the card to clear empty space. Must match
   // `destBox` in SkiaImageRenderer, or the recording and the live tree place
   // the same image differently.
-  const labelSpace = hasInlineLabel(node) ? FILE_IMAGE.labelSpace : 0;
+  const labelSpace = hasInlineLabel(node, imageNames) ? FILE_IMAGE.labelSpace : 0;
   const x = node.x + FILE_IMAGE.margin;
   const y = node.y + FILE_IMAGE.margin;
   const w = Math.max(0, node.width - FILE_IMAGE.margin * 2);
@@ -648,14 +648,14 @@ function drawLinkNode(canvas: SkCanvas, node: LinkNode, colorScheme: ColorScheme
   canvas.drawText(node.url, x, urlY, useTextPaint(mutedColor), getUrlFont());
 }
 
-function drawFileLabel(canvas: SkCanvas, node: FileNode, colorScheme: ColorScheme) {
+function drawFileLabel(canvas: SkCanvas, node: FileNode, colorScheme: ColorScheme, imageNames: ImageNames) {
   // Where the platform reveals filenames on demand, image nodes carry no
   // baked-in label (#49) — and the hover chip is never recorded here even
   // when one is showing. This snapshot stands in for the live tree during a
   // pinch, so a chip baked into it would freeze mid-gesture, still showing a
   // label the live tree beneath had already dismissed. Mirrors the early
   // return in `SkiaFileRenderer`; the two paths must agree.
-  if (!hasInlineLabel(node)) return;
+  if (!hasInlineLabel(node, imageNames)) return;
 
   const textColor = getTextColor(colorScheme);
   const mutedColor = getMutedTextColor(colorScheme);
@@ -760,6 +760,8 @@ interface RecordingInputs {
   colorScheme: ColorScheme;
   /** Directory containing the .canvas file — used to resolve relative `file` paths. */
   basePath?: string;
+  /** Whether image names are drawn in their cards (CanvasView's `imageNames`). */
+  imageNames?: ImageNames;
 }
 
 /**
@@ -774,7 +776,7 @@ interface RecordingInputs {
 export type RecordingDetail = 'full' | 'overview' | 'shapes';
 
 function recordCanvasPicture(inputs: RecordingInputs, imageCache: ImageCache, detail: RecordingDetail = 'full'): SkPicture {
-  const {allNodes, edges, nodeMap, colorScheme, basePath} = inputs;
+  const {allNodes, edges, nodeMap, colorScheme, basePath, imageNames = 'onReveal'} = inputs;
   const text = detail === 'full';
   const images = detail !== 'shapes';
 
@@ -821,10 +823,10 @@ function recordCanvasPicture(inputs: RecordingInputs, imageCache: ImageCache, de
       // Layer 5: links
       for (const node of linkNodes) drawLinkNode(canvas, node, colorScheme);
       // Layer 5: file labels
-      for (const node of fileNodes) drawFileLabel(canvas, node, colorScheme);
+      for (const node of fileNodes) drawFileLabel(canvas, node, colorScheme, imageNames);
     }
     // Layer 5: file images
-    if (images) for (const node of fileNodes) drawFileImage(canvas, node, imageCache, basePath);
+    if (images) for (const node of fileNodes) drawFileImage(canvas, node, imageCache, basePath, imageNames);
     // Layer 6: group labels
     if (text) for (const node of labelledGroups) drawGroupLabel(canvas, node, colorScheme);
   }, bounds);
@@ -912,7 +914,7 @@ export function useCanvasPicture(inputs: RecordingInputs): CanvasPictures | null
     });
 
     return () => { cancelled = true; };
-  }, [inputs.nodeMap, inputs.colorScheme, cacheVersion]);
+  }, [inputs.nodeMap, inputs.colorScheme, inputs.imageNames, cacheVersion]);
 
   return picture;
 }
