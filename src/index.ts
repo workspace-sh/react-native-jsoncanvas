@@ -28,7 +28,7 @@ export {
 export {createCanvasState, type CanvasState} from './core/canvas-state';
 
 // Renderer — Skia + Reanimated React Native components.
-export {CanvasView, type FindResult} from './renderer/CanvasView';
+export {CanvasView, type CanvasCamera, type FindResult} from './renderer/CanvasView';
 export {nodesMatching} from './renderer/findNodes';
 export {CanvasMinimap, type Insets, type MinimapPosition} from './renderer/CanvasMinimap';
 export {getNodeColors, resolveScheme, type ColorScheme} from './renderer/theme';

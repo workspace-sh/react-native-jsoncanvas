@@ -1,6 +1,6 @@
 import React, {useMemo} from 'react';
 import {View, Platform, StyleSheet, type ViewStyle} from 'react-native';
-import {Canvas, Rect, RoundedRect, Group} from '@shopify/react-native-skia';
+import {Canvas, Rect, RoundedRect, Group, processTransform3d} from 'react-native-skia';
 import {useDerivedValue, type SharedValue} from 'react-native-reanimated';
 import type {CanvasNode, CanvasEdge} from '../core';
 import {getCanvasBackground, getMinimapColors, type ColorScheme} from './theme';
@@ -39,9 +39,30 @@ const VIEWPORT_STROKE_WIDTH = 1.5;
 const WORLD_PADDING = 50;
 const MACOS_CONTROLS_INSET = 56;
 
-function getMinimapSize() {
-  if (Platform.OS === 'macos' || Platform.OS === 'web') return DESKTOP_SIZE;
-  return MOBILE_SIZE;
+/**
+ * The minimap's box: landscape for a canvas wider than it's tall, portrait
+ * for a taller one, so the canvas fills as much of it as it can.
+ */
+function getMinimapSize(contentAspect: number) {
+  const size = Platform.OS === 'macos' || Platform.OS === 'web' ? DESKTOP_SIZE : MOBILE_SIZE;
+  return contentAspect < 1 ? {width: size.height, height: size.width} : size;
+}
+
+/** The nodes' bounds, with a margin, in world units. */
+function contentBounds(nodes: CanvasNode[]) {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const n of nodes) {
+    minX = Math.min(minX, n.x);
+    minY = Math.min(minY, n.y);
+    maxX = Math.max(maxX, n.x + n.width);
+    maxY = Math.max(maxY, n.y + n.height);
+  }
+  return {
+    minX: minX - WORLD_PADDING,
+    minY: minY - WORLD_PADDING,
+    width: Math.max(1, maxX - minX + WORLD_PADDING * 2),
+    height: Math.max(1, maxY - minY + WORLD_PADDING * 2),
+  };
 }
 
 export type Insets = {top: number; right: number; bottom: number; left: number};
@@ -88,7 +109,8 @@ export function CanvasMinimap({
   safeArea = NO_INSETS,
   background,
 }: Props) {
-  const size = useMemo(() => getMinimapSize(), []);
+  const bounds = useMemo(() => (nodes.length > 0 ? contentBounds(nodes) : null), [nodes]);
+  const size = useMemo(() => getMinimapSize(bounds ? bounds.width / bounds.height : 1), [bounds]);
   // Typed rather than inline so a mistyped key fails the build instead of
   // being dropped silently at runtime.
   const canvasStyle = useMemo<ViewStyle>(
@@ -118,76 +140,59 @@ export function CanvasMinimap({
     return {groupNodes: groups, otherNodes: others};
   }, [enriched]);
 
-  const layout = useMemo(() => {
-    if (nodes.length === 0) return null;
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    for (const n of nodes) {
-      minX = Math.min(minX, n.x);
-      minY = Math.min(minY, n.y);
-      maxX = Math.max(maxX, n.x + n.width);
-      maxY = Math.max(maxY, n.y + n.height);
-    }
-    minX -= WORLD_PADDING;
-    minY -= WORLD_PADDING;
-    maxX += WORLD_PADDING;
-    maxY += WORLD_PADDING;
-    const boundsW = Math.max(1, maxX - minX);
-    const boundsH = Math.max(1, maxY - minY);
-    const cx = (minX + maxX) / 2;
-    const cy = (minY + maxY) / 2;
-
-    // Aspect-match world to viewport so fit aligns viewport rect to minimap.
-    const viewportAspect = viewportWidth / viewportHeight;
-    const boundsAspect = boundsW / boundsH;
-    let worldW: number, worldH: number;
-    if (boundsAspect < viewportAspect) {
-      worldH = boundsH;
-      worldW = boundsH * viewportAspect;
-    } else {
-      worldW = boundsW;
-      worldH = boundsW / viewportAspect;
-    }
-    const worldMinX = cx - worldW / 2;
-    const worldMinY = cy - worldH / 2;
-
+  // What the minimap shows: the canvas and, when the screen reaches past
+  // it, the screen too, fitted straight into the box, worked out each frame
+  // on the UI thread. It used to pad the canvas out to the screen's shape
+  // (portrait on a phone) and fit that into the landscape box: letterboxed
+  // twice, a large canvas filled a small patch of the minimap and its
+  // viewport marker was a speck.
+  const frame = useDerivedValue(() => {
+    'worklet';
+    if (!bounds) return {fitScale: 1, offsetX: 0, offsetY: 0, view: {x: 0, y: 0, width: 0, height: 0}};
+    const overlayLeft = leftOverlayWidth ? leftOverlayWidth.value : 0;
+    const vx0 = (overlayLeft - translateX.value) / scale.value;
+    const vy0 = (0 - translateY.value) / scale.value;
+    const vx1 = (viewportWidth - translateX.value) / scale.value;
+    const vy1 = (viewportHeight - translateY.value) / scale.value;
+    const minX = Math.min(bounds.minX, vx0);
+    const minY = Math.min(bounds.minY, vy0);
+    const width = Math.max(bounds.minX + bounds.width, vx1) - minX;
+    const height = Math.max(bounds.minY + bounds.height, vy1) - minY;
     const innerW = size.width - INNER_PADDING * 2;
     const innerH = size.height - INNER_PADDING * 2;
-    const fitScale = Math.min(innerW / worldW, innerH / worldH);
-    const offsetX = INNER_PADDING + (innerW - worldW * fitScale) / 2 - worldMinX * fitScale;
-    const offsetY = INNER_PADDING + (innerH - worldH * fitScale) / 2 - worldMinY * fitScale;
-    return {fitScale, offsetX, offsetY};
-  }, [nodes, size.width, size.height, viewportWidth, viewportHeight]);
-
-  // Viewport rectangle in minimap-local coords, derived per frame from camera.
-  const viewportRect = useDerivedValue(() => {
-    'worklet';
-    if (!layout) return {x: 0, y: 0, width: 0, height: 0};
-    const overlayLeft = leftOverlayWidth ? leftOverlayWidth.value : 0;
-    const wx0 = (overlayLeft - translateX.value) / scale.value;
-    const wy0 = (0 - translateY.value) / scale.value;
-    const wx1 = (viewportWidth - translateX.value) / scale.value;
-    const wy1 = (viewportHeight - translateY.value) / scale.value;
+    const fitScale = Math.min(innerW / width, innerH / height);
+    const offsetX = INNER_PADDING + (innerW - width * fitScale) / 2 - minX * fitScale;
+    const offsetY = INNER_PADDING + (innerH - height * fitScale) / 2 - minY * fitScale;
     return {
-      x: wx0 * layout.fitScale + layout.offsetX,
-      y: wy0 * layout.fitScale + layout.offsetY,
-      width: (wx1 - wx0) * layout.fitScale,
-      height: (wy1 - wy0) * layout.fitScale,
+      fitScale,
+      offsetX,
+      offsetY,
+      view: {
+        x: vx0 * fitScale + offsetX,
+        y: vy0 * fitScale + offsetY,
+        width: (vx1 - vx0) * fitScale,
+        height: (vy1 - vy0) * fitScale,
+      },
     };
   });
 
-  if (!layout) return null;
+  // Viewport rectangle in minimap-local coords.
+  const viewportRect = useDerivedValue(() => {
+    'worklet';
+    return frame.value.view;
+  });
+
+  // World → minimap, as CanvasView's camera matrix: out = world * scale + translate.
+  const worldToMinimap = useDerivedValue(() => {
+    'worklet';
+    const f = frame.value;
+    return processTransform3d([{translateX: f.offsetX}, {translateY: f.offsetY}, {scale: f.fitScale}]);
+  });
+
+  if (!bounds) return null;
 
   const bgColor = getCanvasBackground(colorScheme);
   const {border: borderColor, viewportStroke} = getMinimapColors(colorScheme);
-
-  // World → minimap transform. Matches the matrix pattern CanvasView uses
-  // for the main camera: `[translate, scale]` produces
-  // `out = world * scale + translate`.
-  const worldToMinimap = [
-    {translateX: layout.offsetX},
-    {translateY: layout.offsetY},
-    {scale: layout.fitScale},
-  ];
 
   return (
     <View
@@ -211,7 +216,7 @@ export function CanvasMinimap({
 
         {/* All canvas content, scaled into minimap space. Reuses the main
             canvas renderers — visual fidelity inherited for free. */}
-        <Group transform={worldToMinimap}>
+        <Group matrix={worldToMinimap}>
           {groupNodes.map(node => (
             <SkiaCardRenderer key={`g-${node.id}`} node={node} colorScheme={colorScheme} />
           ))}

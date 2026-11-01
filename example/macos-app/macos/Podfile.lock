@@ -1751,7 +1751,7 @@ PODS:
     - SocketRocket
   - react-native-jsoncanvas (0.0.1):
     - React-Core
-  - react-native-skia (2.6.2):
+  - react-native-skia (3.8.1):
     - boost
     - DoubleConversion
     - fast_float
@@ -2541,7 +2541,7 @@ DEPENDENCIES:
   - React-Mapbuffer (from `../../../node_modules/react-native-macos/ReactCommon`)
   - React-microtasksnativemodule (from `../../../node_modules/react-native-macos/ReactCommon/react/nativemodule/microtasks`)
   - "react-native-jsoncanvas (from `../node_modules/@workspace.sh/react-native-jsoncanvas`)"
-  - "react-native-skia (from `../../../node_modules/@shopify/react-native-skia`)"
+  - react-native-skia (from `../../../node_modules/react-native-skia`)
   - React-NativeModulesApple (from `../../../node_modules/react-native-macos/ReactCommon/react/nativemodule/core/platform/ios`)
   - React-oscompat (from `../../../node_modules/react-native-macos/ReactCommon/oscompat`)
   - React-perflogger (from `../../../node_modules/react-native-macos/ReactCommon/reactperflogger`)
@@ -2667,7 +2667,7 @@ EXTERNAL SOURCES:
   react-native-jsoncanvas:
     :path: "../node_modules/@workspace.sh/react-native-jsoncanvas"
   react-native-skia:
-    :path: "../../../node_modules/@shopify/react-native-skia"
+    :path: "../../../node_modules/react-native-skia"
   React-NativeModulesApple:
     :path: "../../../node_modules/react-native-macos/ReactCommon/react/nativemodule/core/platform/ios"
   React-oscompat:
@@ -2778,8 +2778,8 @@ SPEC CHECKSUMS:
   React-logger: ebf77e4ed4180ada8395150e28b3e0afbce85f7f
   React-Mapbuffer: c44902c0cd34295f9d3d966e6700065d020b959a
   React-microtasksnativemodule: 9d242fc7e563da3fe7ad3709b6f95fa7513e67c2
-  react-native-jsoncanvas: e9198914f3b9a61a53db2d82523f29148084fc21
-  react-native-skia: 6354d59a2751ef30f1025deb1bf355dd3856963e
+  react-native-jsoncanvas: 3bcf176efc087569f89ce68709df239530ed008c
+  react-native-skia: 9ebb33c9a9632ef77d9fce0b5947b7deb2d53bfa
   React-NativeModulesApple: 69b79d4f3e84383515f2cca1139f36221361fd22
   React-oscompat: b359d251f6ea20fa91e5e0f99fd7b563f50a8af3
   React-perflogger: 5509ed3adbc84efaba7c3df5f56083839b8ef1c2
