@@ -762,8 +762,21 @@ interface RecordingInputs {
   basePath?: string;
 }
 
-function recordCanvasPicture(inputs: RecordingInputs, imageCache: ImageCache): SkPicture {
+/**
+ * How much of the canvas a recording holds:
+ * - `full`: everything (the Picture the canvas draws from).
+ * - `overview`: everything but text (paragraphs, link and file labels, group
+ *   labels), for when the canvas is zoomed out so far that text would be a
+ *   pixel or two high: thousands of unreadable glyph runs were most of a
+ *   zoomed-out frame's drawing.
+ * - `shapes`: cards and edges only, for the minimap.
+ */
+export type RecordingDetail = 'full' | 'overview' | 'shapes';
+
+function recordCanvasPicture(inputs: RecordingInputs, imageCache: ImageCache, detail: RecordingDetail = 'full'): SkPicture {
   const {allNodes, edges, nodeMap, colorScheme, basePath} = inputs;
+  const text = detail === 'full';
+  const images = detail !== 'shapes';
 
   const groupNodes = allNodes.filter((n): n is GroupNode => n.type === 'group');
   const nonGroupNodes = allNodes.filter(n => n.type !== 'group');
@@ -797,22 +810,36 @@ function recordCanvasPicture(inputs: RecordingInputs, imageCache: ImageCache): S
     // Layer 1: group cards
     for (const node of groupNodes) drawCard(canvas, node, colorScheme);
     // Layer 2: group background images
-    for (const node of groupNodes) drawGroupBackground(canvas, node, imageCache, basePath);
+    if (images) for (const node of groupNodes) drawGroupBackground(canvas, node, imageCache, basePath);
     // Layer 3: edges
     for (const {edge, fromNode, toNode} of resolvedEdges) drawEdge(canvas, edge, fromNode, toNode);
     // Layer 4: non-group cards
     for (const node of nonGroupNodes) drawCard(canvas, node, colorScheme);
-    // Layer 5: text
-    for (const node of textNodes) drawTextNode(canvas, node, colorScheme);
-    // Layer 5: links
-    for (const node of linkNodes) drawLinkNode(canvas, node, colorScheme);
-    // Layer 5: file labels
-    for (const node of fileNodes) drawFileLabel(canvas, node, colorScheme);
+    if (text) {
+      // Layer 5: text
+      for (const node of textNodes) drawTextNode(canvas, node, colorScheme);
+      // Layer 5: links
+      for (const node of linkNodes) drawLinkNode(canvas, node, colorScheme);
+      // Layer 5: file labels
+      for (const node of fileNodes) drawFileLabel(canvas, node, colorScheme);
+    }
     // Layer 5: file images
-    for (const node of fileNodes) drawFileImage(canvas, node, imageCache, basePath);
+    if (images) for (const node of fileNodes) drawFileImage(canvas, node, imageCache, basePath);
     // Layer 6: group labels
-    for (const node of labelledGroups) drawGroupLabel(canvas, node, colorScheme);
+    if (text) for (const node of labelledGroups) drawGroupLabel(canvas, node, colorScheme);
   }, bounds);
+}
+
+/** The canvas's cards and edges as one Picture, for the minimap: drawn every frame as a single replay rather than thousands of live shapes. */
+export function recordShapesPicture(allNodes: CanvasNode[], edges: CanvasEdge[], colorScheme: ColorScheme): SkPicture {
+  const nodeMap = new Map(allNodes.map(n => [n.id, n] as const));
+  return recordCanvasPicture({allNodes, edges, nodeMap, colorScheme}, new Map(), 'shapes');
+}
+
+/** The canvas's two recordings: everything, and the same without text for far zoomed out. */
+export interface CanvasPictures {
+  full: SkPicture;
+  overview: SkPicture;
 }
 
 // ---------- Hook ----------
@@ -828,8 +855,8 @@ function recordCanvasPicture(inputs: RecordingInputs, imageCache: ImageCache): S
  * The Picture is recorded lazily after inputs change (double-RAF to avoid
  * recording during active layout). Returns null if no Picture is available yet.
  */
-export function useCanvasPicture(inputs: RecordingInputs): SkPicture | null {
-  const [picture, setPicture] = useState<SkPicture | null>(null);
+export function useCanvasPicture(inputs: RecordingInputs): CanvasPictures | null {
+  const [picture, setPicture] = useState<CanvasPictures | null>(null);
   const imageCacheRef = useRef<ImageCache>(new Map());
   const inFlightRef = useRef<Set<string>>(new Set());
   const [cacheVersion, setCacheVersion] = useState(0);
@@ -877,7 +904,10 @@ export function useCanvasPicture(inputs: RecordingInputs): SkPicture | null {
       if (cancelled) return;
       requestAnimationFrame(() => {
         if (cancelled) return;
-        setPicture(recordCanvasPicture(inputsRef.current, imageCacheRef.current));
+        setPicture({
+          full: recordCanvasPicture(inputsRef.current, imageCacheRef.current, 'full'),
+          overview: recordCanvasPicture(inputsRef.current, imageCacheRef.current, 'overview'),
+        });
       });
     });
 

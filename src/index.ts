@@ -31,6 +31,7 @@ export {createCanvasState, type CanvasState} from './core/canvas-state';
 export {CanvasView, type CanvasCamera, type FindResult} from './renderer/CanvasView';
 export {nodesMatching} from './renderer/findNodes';
 export {CanvasMinimap, type Insets, type MinimapPosition} from './renderer/CanvasMinimap';
+export {CanvasGlass, CanvasGlassButton, type CanvasGlassProps, type CanvasGlassButtonProps} from './renderer/CanvasGlass';
 export {getNodeColors, resolveScheme, type ColorScheme} from './renderer/theme';
 export {useCanvasContext, CanvasProvider} from './renderer/CanvasContext';
 export {activateScrollWheel, deactivateScrollWheel} from './renderer/NativeScrollWheelView';
