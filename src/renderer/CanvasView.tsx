@@ -31,6 +31,14 @@ interface ViewState {
   scale: number;
 }
 
+/** The camera's shared values (CanvasView's onReady): where the canvas is panned to, its zoom, and whether a pinch is under way. */
+export interface CanvasCamera {
+  translateX: SharedValue<number>;
+  translateY: SharedValue<number>;
+  scale: SharedValue<number>;
+  isPinching: SharedValue<boolean>;
+}
+
 interface Props {
   /** Raw JSON string of a .canvas file. */
   content: string;
@@ -61,6 +69,13 @@ interface Props {
      * user has since panned, pinched, or double-tap-zoomed).
      */
     getLastAction: () => 'fit' | 'recenter' | 'manual';
+    /**
+     * The camera's own values, for a host that drives it (a benchmark, a
+     * guided tour): writing them moves the canvas exactly as a pinch or a
+     * pan does. `isPinching` true draws from the recorded picture, as a
+     * pinch in progress does.
+     */
+    camera: CanvasCamera;
     /**
      * Find the nodes whose text holds `query` (a card's text, a file's or
      * link's name, a group's label), in reading order, and show the first.
@@ -137,6 +152,8 @@ const MIN_SCALE = 0.1; // 0.1 default
 const MAX_SCALE = 6.0; // 3.0 default
 const PINCH_DRIFT_DEADZONE = 10; // screen pixels
 const PINCH_NOOP_THRESHOLD = 0.02; // 2% scale change
+/** A pan starting this soon after a pinch ends is its leftover finger: no momentum on release. */
+const PAN_AFTER_PINCH_MS = 400;
 const PINCH_FOCAL_DELTA_CAP = 30; // max per-frame focal point shift (screen pixels)
 
 // Double-tap zoom-to-node tuning.
@@ -229,6 +246,21 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
   const pinchStartFocalY = useSharedValue(0);
   const prevFocalX = useSharedValue(0);
   const prevFocalY = useSharedValue(0);
+  // The pinch's own scale when the current two-finger stretch began, and how
+  // many fingers the last update had: a pinch is started afresh from where
+  // the camera is whenever two fingers are down again.
+  const pinchScaleBase = useSharedValue(1);
+  const pinchPointers = useSharedValue(0);
+  // When the last pinch ended (ms), and whether the current pan began during
+  // or just after one: the finger left on the screen when a pinch ends is a
+  // pan, and its release mustn't fling the canvas.
+  const pinchEndedAt = useSharedValue(-Infinity);
+  const panFromPinch = useSharedValue(false);
+  // Whether the pan is paused for a pinch: a pan that began with the first
+  // finger keeps tracking it when a second lands (iOS ignores the extra
+  // finger rather than ending the pan), so without the pause the pan and the
+  // pinch both moved the camera every frame, each undoing the other.
+  const panPaused = useSharedValue(false);
   const isPinching = useSharedValue(false);
 
   // Camera-animation interrupt flag (#141, #146). Pinch / pan worklets set
@@ -522,6 +554,8 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
   // Toggle state: which node we last zoomed into. Re-tapping the same node
   // returns to fit-all; tapping a different node zooms there.
   const lastZoomedNodeId = useRef<string | null>(null);
+  /** Where the camera was before a double-tap zoomed to a node: a second double-tap goes back there. */
+  const beforeZoom = useRef<{tx: number; ty: number; s: number} | null>(null);
 
   const handleDoubleTap = useCallback((wx: number, wy: number) => {
     // Don't fight an in-flight pinch
@@ -542,8 +576,19 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
     const inset = leftOverlayWidth?.value ?? 0;
 
     if (!hit || lastZoomedNodeId.current === hit.id) {
-      fitToViewport(inset);
+      // Back to where the reader was before zooming in, as a second
+      // double-tap does in Photos or Maps. It used to fit the whole canvas,
+      // which on a small canvas looked the same (opened fitted) but on a
+      // large one landed somewhere else. With nothing to go back to, fit.
+      const back = beforeZoom.current;
+      beforeZoom.current = null;
       lastZoomedNodeId.current = null;
+      if (back) {
+        animateCamera(back.tx, back.ty, back.s);
+        lastActionRef.current = 'manual';
+        return;
+      }
+      fitToViewport(inset);
       // Double-tap is a manual / focal interaction — sidebar toggle should
       // leave the camera alone afterwards. fitToViewport set lastAction to
       // 'fit' inside its body; override here.
@@ -551,10 +596,15 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
       return;
     }
 
+    // Kept from the first zoom only: tapping from one node to the next still
+    // goes back to where the reader began.
+    if (lastZoomedNodeId.current === null) {
+      beforeZoom.current = {tx: translateX.value, ty: translateY.value, s: scale.value};
+    }
     zoomToNode(hit, inset);
     lastZoomedNodeId.current = hit.id;
     lastActionRef.current = 'manual';
-  }, [canvasState, fitToViewport, zoomToNode, isPinching, leftOverlayWidth]);
+  }, [canvasState, fitToViewport, zoomToNode, animateCamera, isPinching, leftOverlayWidth, translateX, translateY, scale]);
 
   // Recenter content at current zoom level, against the visible canvas pane.
   // See `fitToViewport` for the leftOverlayWidth rationale.
@@ -631,6 +681,7 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
       fitToViewport: (leftOverlayWidth?: number) => fitRef.current(leftOverlayWidth),
       recenter: (leftOverlayWidth?: number) => recenterRef.current(leftOverlayWidth),
       getLastAction: () => lastActionRef.current,
+      camera: {translateX, translateY, scale, isPinching},
       find,
       findStep,
     });
@@ -827,23 +878,51 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
           scheduleOnRN(setLastAction, 'manual');
           prevTranslateX.value = translateX.value;
           prevTranslateY.value = translateY.value;
+          panFromPinch.value = isPinching.value || Date.now() - pinchEndedAt.value < PAN_AFTER_PINCH_MS;
+          panPaused.value = false;
         })
         .onUpdate(event => {
           'worklet';
+          // The pinch moves the camera while it's on; the pan waits, then
+          // carries on from wherever the pinch left it.
+          if (isPinching.value) {
+            panPaused.value = true;
+            panFromPinch.value = true;
+            return;
+          }
+          if (panPaused.value) {
+            panPaused.value = false;
+            prevTranslateX.value = translateX.value - event.translationX;
+            prevTranslateY.value = translateY.value - event.translationY;
+          }
           translateX.value = prevTranslateX.value + event.translationX;
           translateY.value = prevTranslateY.value + event.translationY;
         })
         .onEnd(event => {
           'worklet';
-          if (Platform.OS !== 'macos') {
-            // Inertial panning: carry forward flick velocity with natural deceleration
+          if (Platform.OS !== 'macos' && !panFromPinch.value && !isPinching.value) {
+            // Inertial panning: carry forward flick velocity with natural deceleration.
+            // Not for the finger left over from a pinch: it moves as fast as
+            // a pinch does, and its release threw the canvas far off, past
+            // its edge on a large one.
             const deceleration = 0.997;
+            // A flick stops with at least a quarter of the screen still on
+            // the canvas: its speed is in screen points, so on a large canvas
+            // shrunk to fit it otherwise sailed far past the edge.
+            const s = scale.value;
+            const marginX = viewportWidth / 4;
+            const marginY = viewportHeight / 4;
+            const minX = Math.min(translateX.value, marginX - (bounds.x + bounds.width) * s);
+            const maxX = Math.max(translateX.value, viewportWidth - marginX - bounds.x * s);
+            const minY = Math.min(translateY.value, marginY - (bounds.y + bounds.height) * s);
+            const maxY = Math.max(translateY.value, viewportHeight - marginY - bounds.y * s);
             translateX.value = withDecay({
               velocity: event.velocityX,
               deceleration,
+              clamp: [minX, maxX],
             });
             translateY.value = withDecay(
-              { velocity: event.velocityY, deceleration },
+              { velocity: event.velocityY, deceleration, clamp: [minY, maxY] },
               (finished) => {
                 'worklet';
                 if (finished) {
@@ -855,7 +934,7 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
             scheduleOnRN(saveViewState);
           }
         }),
-    [translateX, translateY, prevTranslateX, prevTranslateY, animCancelled, setLastAction, saveViewState, systemEdge],
+    [translateX, translateY, scale, prevTranslateX, prevTranslateY, animCancelled, setLastAction, saveViewState, systemEdge, isPinching, pinchEndedAt, panFromPinch, panPaused, bounds, viewportWidth, viewportHeight],
   );
 
   // Trackpad pinch to zoom
@@ -881,15 +960,32 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
           pinchStartFocalY.value = event.focalY;
           prevFocalX.value = event.focalX;
           prevFocalY.value = event.focalY;
+          pinchScaleBase.value = event.scale;
+          pinchPointers.value = event.numberOfPointers;
         })
         .onUpdate(event => {
           'worklet';
-          // Guard 1: pointer-count — when a finger lifts, the focal point
-          // snaps from the two-finger midpoint to the remaining finger.
-          // Freeze translate and only update scale.
+          // Guard 1: pointer count. With one finger down the camera holds
+          // still. It used to keep zooming from the one-finger scale with the
+          // position frozen, which zooms about the canvas's origin rather
+          // than the fingers: far from the origin (most of a large canvas)
+          // that threw the view to another part of it.
           if (event.numberOfPointers < 2) {
-            const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, pinchStartScale.value * event.scale));
-            scale.value = newScale;
+            pinchPointers.value = event.numberOfPointers;
+            return;
+          }
+          // Two fingers down again: start afresh from where the camera is,
+          // so neither the new finger spacing nor the new midpoint jumps it.
+          if (pinchPointers.value < 2) {
+            pinchPointers.value = event.numberOfPointers;
+            pinchStartScale.value = scale.value;
+            pinchStartTx.value = translateX.value;
+            pinchStartTy.value = translateY.value;
+            pinchStartFocalX.value = event.focalX;
+            pinchStartFocalY.value = event.focalY;
+            prevFocalX.value = event.focalX;
+            prevFocalY.value = event.focalY;
+            pinchScaleBase.value = event.scale;
             return;
           }
 
@@ -906,7 +1002,8 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
           prevFocalX.value = focalX;
           prevFocalY.value = focalY;
 
-          const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, pinchStartScale.value * event.scale));
+          const stretch = pinchScaleBase.value > 0 ? event.scale / pinchScaleBase.value : event.scale;
+          const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, pinchStartScale.value * stretch));
           const ratio = newScale / pinchStartScale.value;
 
           // Deadzone on focal point drift from gesture start.
@@ -939,9 +1036,10 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
           }
 
           isPinching.value = false;
+          pinchEndedAt.value = Date.now();
           scheduleOnRN(saveViewState);
         }),
-    [scale, translateX, translateY, pinchStartScale, pinchStartTx, pinchStartTy, pinchStartFocalX, pinchStartFocalY, prevFocalX, prevFocalY, isPinching, animCancelled, setLastAction, saveViewState],
+    [scale, translateX, translateY, pinchStartScale, pinchStartTx, pinchStartTy, pinchStartFocalX, pinchStartFocalY, prevFocalX, prevFocalY, pinchScaleBase, pinchPointers, pinchEndedAt, isPinching, animCancelled, setLastAction, saveViewState],
   );
 
   // Double-tap to zoom-to-node (#145). Composed via Gesture.Race(tap, pan) so
@@ -990,7 +1088,7 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
   // completion branch below.
   const {visibleNodes, visibleEdges, updateBounds} = useViewportCulling(
     camera, viewportWidth, viewportHeight, allNodes, allEdges,
-    {isCameraAnimating},
+    {isCameraAnimating, isPinching},
   );
 
   const contextValue = useMemo(
@@ -1015,14 +1113,14 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
           <SkiaCanvasLayer
             allNodes={visibleNodes}
             edges={visibleEdges}
+            pictureNodes={allNodes}
+            pictureEdges={allEdges}
             nodes={nodeMap}
             colorScheme={colorScheme}
             camera={camera}
             viewportWidth={viewportWidth}
             viewportHeight={viewportHeight}
             basePath={basePath}
-            isPinching={isPinching}
-            isCameraAnimating={isCameraAnimating}
             hoveredFileNodeId={hoveredFileNodeId}
           />
           {minimap !== 'hidden' && allNodes.length > 0 && (

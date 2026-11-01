@@ -22,6 +22,14 @@ interface CullingOptions {
    * set is correct.
    */
   isCameraAnimating?: SharedValue<boolean>;
+  /**
+   * When true, the visible set is held still: a pinch draws from the
+   * recorded Picture over the live tree, so updating the live tree mid-pinch
+   * is wasted work, and at thousands of nodes each update blocks the
+   * JavaScript thread for a large share of a frame. The visible set is
+   * brought up to date once, as the pinch ends.
+   */
+  isPinching?: SharedValue<boolean>;
 }
 
 function rectsIntersect(a: Rect, b: Rect): boolean {
@@ -80,7 +88,7 @@ export function useViewportCulling(
   allEdges: CanvasEdge[],
   options: CullingOptions = {},
 ) {
-  const {isCameraAnimating} = options;
+  const {isCameraAnimating, isPinching} = options;
   const [viewportBounds, setViewportBounds] = useState<Rect | null>(null);
 
   const updateBounds = useCallback((tx: number, ty: number, s: number) => {
@@ -93,12 +101,14 @@ export function useViewportCulling(
   const lastTx = useSharedValue(0);
   const lastTy = useSharedValue(0);
   const lastScale = useSharedValue(1);
+  const heldByPinch = useSharedValue(false);
 
   useAnimatedReaction(
     () => ({
       tx: camera.translateX.value,
       ty: camera.translateY.value,
       s: camera.scale.value,
+      pinching: isPinching?.value ?? false,
     }),
     (current) => {
       'worklet';
@@ -107,11 +117,17 @@ export function useViewportCulling(
       // visible chop on macOS double-tap zoom. Final visible-set update
       // runs explicitly from `animateCamera`'s completion branch.
       if (isCameraAnimating?.value) return;
+      if (current.pinching) {
+        heldByPinch.value = true;
+        return;
+      }
+      const pinchEnded = heldByPinch.value;
+      heldByPinch.value = false;
       const threshold = 0.25 * Math.min(screenWidth, screenHeight);
       const dTx = Math.abs(current.tx - lastTx.value);
       const dTy = Math.abs(current.ty - lastTy.value);
       const dScale = Math.abs(current.s - lastScale.value);
-      if (dTx > threshold || dTy > threshold || dScale > lastScale.value * 0.2) {
+      if (pinchEnded || dTx > threshold || dTy > threshold || dScale > lastScale.value * 0.2) {
         lastTx.value = current.tx;
         lastTy.value = current.ty;
         lastScale.value = current.s;
