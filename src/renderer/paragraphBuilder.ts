@@ -9,8 +9,8 @@
  * `font.measureText` advances used by the Picture's `canvas.drawText` loop.
  */
 
-import {Skia, TextDecoration} from '@shopify/react-native-skia';
-import type {SkParagraph, SkTextStyle, SkColor} from '@shopify/react-native-skia';
+import {Skia, TextDecoration} from 'react-native-skia';
+import type {SkParagraph, SkTextStyle, SkColor} from 'react-native-skia';
 import {paragraphRuns, type TextSegment, type SegmentStyle} from './markdown';
 import {getLinkColor, getMutedTextColor, getTextColor, type ColorScheme} from './theme';
 

@@ -29,7 +29,7 @@ import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {NativeModules, Pressable, StyleSheet, Text, useColorScheme, View} from 'react-native';
 import {GestureHandlerRootView} from 'react-native-gesture-handler';
 import {CanvasView} from '@workspace.sh/react-native-jsoncanvas';
-import {SAMPLE_CANVAS} from './fixtures';
+import {SAMPLE_CANVAS} from '../shared/fixtures';
 import {Sidebar, type OpenedFile} from './Sidebar';
 
 type Controls = {

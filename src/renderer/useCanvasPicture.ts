@@ -1,6 +1,6 @@
 import {useState, useEffect, useRef} from 'react';
-import {Skia, createPicture, matchFont, PaintStyle, TileMode} from '@shopify/react-native-skia';
-import type {SkPicture, SkCanvas, SkFont, SkPaint, SkImage} from '@shopify/react-native-skia';
+import {Skia, createPicture, matchFont, PaintStyle, TileMode} from 'react-native-skia';
+import type {SkPicture, SkCanvas, SkFont, SkPaint, SkImage} from 'react-native-skia';
 import type {CanvasNode, CanvasEdge, TextNode, LinkNode, FileNode, GroupNode, EdgeSide} from '../core';
 import type {EnrichedTextNode} from './extensions/cssclasses';
 import {hasCallouts, parseCallouts, getHeader, getFooter, getLabels, getCenteredCallout} from './extensions/callouts';
@@ -10,7 +10,7 @@ import {
 } from './theme';
 import {CHIP, EDGE_LABEL, FILE_IMAGE, GROUP_LABEL, LABEL, LINK, NODE, ZONE} from './metrics';
 import {FONT_SIZE, H4, type FontConfig} from './typography';
-import {hasInlineLabel, isImageFile} from './utils/fileNodeLabel';
+import {hasInlineLabel, isImageFile, type ImageNames} from './utils/fileNodeLabel';
 import {parseToSegments, toPlainText} from './markdown';
 import {buildParagraph, getParagraphColours} from './paragraphBuilder';
 import {resolveFileUri} from './utils/resolveFileUri';
@@ -196,7 +196,7 @@ const RASTER_RE = /\.(png|jpg|jpeg|gif|webp|bmp|ico)$/i;
 // SVGs are excluded from Picture recording — they render live during pinch
 // to preserve vector fidelity at any zoom level.
 type ImageCacheEntry = {type: 'raster'; image: SkImage};
-type ImageCache = Map<string, ImageCacheEntry>;
+export type ImageCache = Map<string, ImageCacheEntry>;
 
 /** Extract raster image URIs from nodes (group backgrounds + file node images).
  *  SVGs are excluded — they render live during pinch for vector fidelity. */
@@ -228,7 +228,7 @@ async function loadImageCache(uris: string[]): Promise<ImageCache> {
     try {
       const data = await Skia.Data.fromURI(uri);
       if (!data) return;
-      const image = Skia.Image.MakeImageFromEncoded(data);
+      const image = Skia.Image.MakeFromEncoded(data);
       if (image) cache.set(uri, {type: 'raster', image});
     } catch (err) {
       console.warn(`[useCanvasPicture] Failed to load image ${uri}:`, err);
@@ -428,7 +428,7 @@ function drawGroupBackground(canvas: SkCanvas, node: GroupNode, imageCache: Imag
   canvas.restore();
 }
 
-function drawFileImage(canvas: SkCanvas, node: FileNode, imageCache: ImageCache, basePath?: string) {
+function drawFileImage(canvas: SkCanvas, node: FileNode, imageCache: ImageCache, basePath: string | undefined, imageNames: ImageNames) {
   if (!RASTER_RE.test(node.file)) return; // SVGs render live for vector fidelity
   const uri = resolveFileUri(node.file, basePath);
   if (!uri) return;
@@ -439,7 +439,7 @@ function drawFileImage(canvas: SkCanvas, node: FileNode, imageCache: ImageCache,
   // the image is pushed up the card to clear empty space. Must match
   // `destBox` in SkiaImageRenderer, or the recording and the live tree place
   // the same image differently.
-  const labelSpace = hasInlineLabel(node) ? FILE_IMAGE.labelSpace : 0;
+  const labelSpace = hasInlineLabel(node, imageNames) ? FILE_IMAGE.labelSpace : 0;
   const x = node.x + FILE_IMAGE.margin;
   const y = node.y + FILE_IMAGE.margin;
   const w = Math.max(0, node.width - FILE_IMAGE.margin * 2);
@@ -648,14 +648,14 @@ function drawLinkNode(canvas: SkCanvas, node: LinkNode, colorScheme: ColorScheme
   canvas.drawText(node.url, x, urlY, useTextPaint(mutedColor), getUrlFont());
 }
 
-function drawFileLabel(canvas: SkCanvas, node: FileNode, colorScheme: ColorScheme) {
+function drawFileLabel(canvas: SkCanvas, node: FileNode, colorScheme: ColorScheme, imageNames: ImageNames) {
   // Where the platform reveals filenames on demand, image nodes carry no
   // baked-in label (#49) — and the hover chip is never recorded here even
   // when one is showing. This snapshot stands in for the live tree during a
   // pinch, so a chip baked into it would freeze mid-gesture, still showing a
   // label the live tree beneath had already dismissed. Mirrors the early
   // return in `SkiaFileRenderer`; the two paths must agree.
-  if (!hasInlineLabel(node)) return;
+  if (!hasInlineLabel(node, imageNames)) return;
 
   const textColor = getTextColor(colorScheme);
   const mutedColor = getMutedTextColor(colorScheme);
@@ -760,10 +760,25 @@ interface RecordingInputs {
   colorScheme: ColorScheme;
   /** Directory containing the .canvas file — used to resolve relative `file` paths. */
   basePath?: string;
+  /** Whether image names are drawn in their cards (CanvasView's `imageNames`). */
+  imageNames?: ImageNames;
 }
 
-function recordCanvasPicture(inputs: RecordingInputs, imageCache: ImageCache): SkPicture {
-  const {allNodes, edges, nodeMap, colorScheme, basePath} = inputs;
+/**
+ * How much of the canvas a recording holds:
+ * - `full`: everything (the Picture the canvas draws from).
+ * - `overview`: everything but text (paragraphs, link and file labels, group
+ *   labels), for when the canvas is zoomed out so far that text would be a
+ *   pixel or two high: thousands of unreadable glyph runs were most of a
+ *   zoomed-out frame's drawing.
+ * - `shapes`: cards and edges only, for the minimap.
+ */
+export type RecordingDetail = 'full' | 'overview' | 'shapes';
+
+function recordCanvasPicture(inputs: RecordingInputs, imageCache: ImageCache, detail: RecordingDetail = 'full'): SkPicture {
+  const {allNodes, edges, nodeMap, colorScheme, basePath, imageNames = 'onReveal'} = inputs;
+  const text = detail === 'full';
+  const images = detail !== 'shapes';
 
   const groupNodes = allNodes.filter((n): n is GroupNode => n.type === 'group');
   const nonGroupNodes = allNodes.filter(n => n.type !== 'group');
@@ -797,22 +812,61 @@ function recordCanvasPicture(inputs: RecordingInputs, imageCache: ImageCache): S
     // Layer 1: group cards
     for (const node of groupNodes) drawCard(canvas, node, colorScheme);
     // Layer 2: group background images
-    for (const node of groupNodes) drawGroupBackground(canvas, node, imageCache, basePath);
+    if (images) for (const node of groupNodes) drawGroupBackground(canvas, node, imageCache, basePath);
     // Layer 3: edges
     for (const {edge, fromNode, toNode} of resolvedEdges) drawEdge(canvas, edge, fromNode, toNode);
     // Layer 4: non-group cards
     for (const node of nonGroupNodes) drawCard(canvas, node, colorScheme);
-    // Layer 5: text
-    for (const node of textNodes) drawTextNode(canvas, node, colorScheme);
-    // Layer 5: links
-    for (const node of linkNodes) drawLinkNode(canvas, node, colorScheme);
-    // Layer 5: file labels
-    for (const node of fileNodes) drawFileLabel(canvas, node, colorScheme);
+    if (text) {
+      // Layer 5: text
+      for (const node of textNodes) drawTextNode(canvas, node, colorScheme);
+      // Layer 5: links
+      for (const node of linkNodes) drawLinkNode(canvas, node, colorScheme);
+      // Layer 5: file labels
+      for (const node of fileNodes) drawFileLabel(canvas, node, colorScheme, imageNames);
+    }
     // Layer 5: file images
-    for (const node of fileNodes) drawFileImage(canvas, node, imageCache, basePath);
+    if (images) for (const node of fileNodes) drawFileImage(canvas, node, imageCache, basePath, imageNames);
     // Layer 6: group labels
-    for (const node of labelledGroups) drawGroupLabel(canvas, node, colorScheme);
+    if (text) for (const node of labelledGroups) drawGroupLabel(canvas, node, colorScheme);
   }, bounds);
+}
+
+/** The canvas's cards and edges as one Picture, for the minimap: drawn every frame as a single replay rather than thousands of live shapes. */
+export function recordShapesPicture(allNodes: CanvasNode[], edges: CanvasEdge[], colorScheme: ColorScheme): SkPicture {
+  const nodeMap = new Map(allNodes.map(n => [n.id, n] as const));
+  return recordCanvasPicture({allNodes, edges, nodeMap, colorScheme}, new Map(), 'shapes');
+}
+
+/**
+ * A few nodes and the edges between them, recorded on their own: a node's
+ * preview (`CanvasNodePreview`). The same drawing as the canvas's, so a
+ * card looks the same lifted out as it does in place.
+ */
+export function recordNodesPicture(
+  nodes: CanvasNode[],
+  edges: CanvasEdge[],
+  colorScheme: ColorScheme,
+  basePath: string | undefined,
+  imageNames: ImageNames,
+  images: ImageCache,
+): SkPicture {
+  const groups = nodes.filter(n => n.type === 'group');
+  const others = nodes.filter(n => n.type !== 'group');
+  const allNodes = [...groups, ...others];
+  const nodeMap = new Map(allNodes.map(n => [n.id, n] as const));
+  return recordCanvasPicture({allNodes, edges, nodeMap, colorScheme, basePath, imageNames}, images, 'full');
+}
+
+/** Loads the raster images some nodes draw (file nodes, group backgrounds), for `recordNodesPicture`. */
+export function loadNodeImages(nodes: CanvasNode[], basePath?: string): Promise<ImageCache> {
+  return loadImageCache(collectImageUris(nodes, basePath));
+}
+
+/** The canvas's two recordings: everything, and the same without text for far zoomed out. */
+export interface CanvasPictures {
+  full: SkPicture;
+  overview: SkPicture;
 }
 
 // ---------- Hook ----------
@@ -828,14 +882,14 @@ function recordCanvasPicture(inputs: RecordingInputs, imageCache: ImageCache): S
  * The Picture is recorded lazily after inputs change (double-RAF to avoid
  * recording during active layout). Returns null if no Picture is available yet.
  */
-export function useCanvasPicture(inputs: RecordingInputs): SkPicture | null {
-  const [picture, setPicture] = useState<SkPicture | null>(null);
+export function useCanvasPicture(inputs: RecordingInputs): CanvasPictures | null {
+  const [picture, setPicture] = useState<CanvasPictures | null>(null);
   const imageCacheRef = useRef<ImageCache>(new Map());
   const inFlightRef = useRef<Set<string>>(new Set());
   const [cacheVersion, setCacheVersion] = useState(0);
 
-  // Effect 1 — image loading. Depends only on allNodes (which on mobile is
-  // the culled visible set). Loads are fire-and-forget: results always merge
+  // Effect 1 — image loading. Depends only on allNodes (every node: the
+  // Picture holds the whole canvas). Loads are fire-and-forget: results always merge
   // into the persistent cache regardless of effect cancellation, and bump
   // cacheVersion to trigger a re-record in Effect 2.
   useEffect(() => {
@@ -863,15 +917,13 @@ export function useCanvasPicture(inputs: RecordingInputs): SkPicture | null {
       });
   }, [inputs.allNodes, inputs.basePath]);
 
-  // Keep a ref to the latest inputs so the recording effect can read them
-  // without depending on viewport-volatile array refs (visibleNodes/visibleEdges
-  // change on every viewport update, which would cancel the double-RAF).
+  // Keep a ref to the latest inputs so the recording effect reads them
+  // without depending on the arrays' identity.
   const inputsRef = useRef(inputs);
   inputsRef.current = inputs;
 
-  // Effect 2 — Picture recording. Depends on stable content identity
-  // (nodeMap, colorScheme) and cacheVersion, NOT on the culled node/edge
-  // arrays which change every viewport update during gestures.
+  // Effect 2 — Picture recording. Depends on content identity (nodeMap,
+  // colorScheme) and cacheVersion.
   useEffect(() => {
     let cancelled = false;
 
@@ -879,12 +931,15 @@ export function useCanvasPicture(inputs: RecordingInputs): SkPicture | null {
       if (cancelled) return;
       requestAnimationFrame(() => {
         if (cancelled) return;
-        setPicture(recordCanvasPicture(inputsRef.current, imageCacheRef.current));
+        setPicture({
+          full: recordCanvasPicture(inputsRef.current, imageCacheRef.current, 'full'),
+          overview: recordCanvasPicture(inputsRef.current, imageCacheRef.current, 'overview'),
+        });
       });
     });
 
     return () => { cancelled = true; };
-  }, [inputs.nodeMap, inputs.colorScheme, cacheVersion]);
+  }, [inputs.nodeMap, inputs.colorScheme, inputs.imageNames, cacheVersion]);
 
   return picture;
 }

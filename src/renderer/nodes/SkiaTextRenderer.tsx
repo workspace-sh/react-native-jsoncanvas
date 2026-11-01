@@ -1,8 +1,8 @@
-import React, {useMemo} from 'react';
+import React, {useMemo, memo} from 'react';
 import {
   Group, Line, vec, matchFont, Text, rect,
   Paragraph as SkiaParagraph,
-} from '@shopify/react-native-skia';
+} from 'react-native-skia';
 import type {TextNode} from '../../core';
 import type {EnrichedTextNode} from '../extensions/cssclasses';
 import {hasCallouts, parseCallouts, getHeader, getFooter, getCenteredCallout} from '../extensions/callouts';
@@ -48,7 +48,7 @@ function getFont(config: FontConfig) {
  * Headers get larger/bold fonts, lists get bullet prefixes, code blocks use
  * monospace, blockquotes are indented and muted. Inline syntax is stripped.
  */
-export function SkiaTextRenderer({node, colorScheme, offsetX, offsetY}: Props) {
+function SkiaTextRendererView({node, colorScheme, offsetX, offsetY}: Props) {
   const textColor = getTextColor(colorScheme);
   const mutedColor = getMutedTextColor(colorScheme);
 
@@ -232,3 +232,6 @@ export function SkiaTextRenderer({node, colorScheme, offsetX, offsetY}: Props) {
     </Group>
   );
 }
+
+/** Memoised: a culling update re-renders only the nodes entering or leaving, not every visible one. */
+export const SkiaTextRenderer = memo(SkiaTextRendererView);

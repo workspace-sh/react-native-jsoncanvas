@@ -1,5 +1,5 @@
-import React from 'react';
-import {Text, RoundedRect, matchFont} from '@shopify/react-native-skia';
+import React, {memo} from 'react';
+import {Text, RoundedRect, matchFont} from 'react-native-skia';
 import type {GroupNode} from '../../core';
 import {getNodeColors, type ColorScheme} from '../theme';
 import {GROUP_LABEL} from '../metrics';
@@ -23,7 +23,7 @@ function getFont() {
  * Renders group node label pills via Skia, bypassing the
  * react-native-macos Text rendering limitation.
  */
-export function SkiaGroupLabelRenderer({node, colorScheme, offsetX, offsetY}: Props) {
+function SkiaGroupLabelRendererView({node, colorScheme, offsetX, offsetY}: Props) {
   const font = getFont();
   if (!font || !node.label) return null;
 
@@ -55,3 +55,6 @@ export function SkiaGroupLabelRenderer({node, colorScheme, offsetX, offsetY}: Pr
     </>
   );
 }
+
+/** Memoised: a culling update re-renders only the nodes entering or leaving, not every visible one. */
+export const SkiaGroupLabelRenderer = memo(SkiaGroupLabelRendererView);
