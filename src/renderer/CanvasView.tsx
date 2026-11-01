@@ -152,6 +152,8 @@ const MIN_SCALE = 0.1; // 0.1 default
 const MAX_SCALE = 6.0; // 3.0 default
 const PINCH_DRIFT_DEADZONE = 10; // screen pixels
 const PINCH_NOOP_THRESHOLD = 0.02; // 2% scale change
+/** A pan starting this soon after a pinch ends is its leftover finger: no momentum on release. */
+const PAN_AFTER_PINCH_MS = 400;
 const PINCH_FOCAL_DELTA_CAP = 30; // max per-frame focal point shift (screen pixels)
 
 // Double-tap zoom-to-node tuning.
@@ -249,6 +251,11 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
   // the camera is whenever two fingers are down again.
   const pinchScaleBase = useSharedValue(1);
   const pinchPointers = useSharedValue(0);
+  // When the last pinch ended (ms), and whether the current pan began during
+  // or just after one: the finger left on the screen when a pinch ends is a
+  // pan, and its release mustn't fling the canvas.
+  const pinchEndedAt = useSharedValue(-Infinity);
+  const panFromPinch = useSharedValue(false);
   const isPinching = useSharedValue(false);
 
   // Camera-animation interrupt flag (#141, #146). Pinch / pan worklets set
@@ -848,6 +855,7 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
           scheduleOnRN(setLastAction, 'manual');
           prevTranslateX.value = translateX.value;
           prevTranslateY.value = translateY.value;
+          panFromPinch.value = isPinching.value || Date.now() - pinchEndedAt.value < PAN_AFTER_PINCH_MS;
         })
         .onUpdate(event => {
           'worklet';
@@ -856,15 +864,29 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
         })
         .onEnd(event => {
           'worklet';
-          if (Platform.OS !== 'macos') {
-            // Inertial panning: carry forward flick velocity with natural deceleration
+          if (Platform.OS !== 'macos' && !panFromPinch.value && !isPinching.value) {
+            // Inertial panning: carry forward flick velocity with natural deceleration.
+            // Not for the finger left over from a pinch: it moves as fast as
+            // a pinch does, and its release threw the canvas far off, past
+            // its edge on a large one.
             const deceleration = 0.997;
+            // A flick stops with at least a quarter of the screen still on
+            // the canvas: its speed is in screen points, so on a large canvas
+            // shrunk to fit it otherwise sailed far past the edge.
+            const s = scale.value;
+            const marginX = viewportWidth / 4;
+            const marginY = viewportHeight / 4;
+            const minX = Math.min(translateX.value, marginX - (bounds.x + bounds.width) * s);
+            const maxX = Math.max(translateX.value, viewportWidth - marginX - bounds.x * s);
+            const minY = Math.min(translateY.value, marginY - (bounds.y + bounds.height) * s);
+            const maxY = Math.max(translateY.value, viewportHeight - marginY - bounds.y * s);
             translateX.value = withDecay({
               velocity: event.velocityX,
               deceleration,
+              clamp: [minX, maxX],
             });
             translateY.value = withDecay(
-              { velocity: event.velocityY, deceleration },
+              { velocity: event.velocityY, deceleration, clamp: [minY, maxY] },
               (finished) => {
                 'worklet';
                 if (finished) {
@@ -876,7 +898,7 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
             scheduleOnRN(saveViewState);
           }
         }),
-    [translateX, translateY, prevTranslateX, prevTranslateY, animCancelled, setLastAction, saveViewState, systemEdge],
+    [translateX, translateY, scale, prevTranslateX, prevTranslateY, animCancelled, setLastAction, saveViewState, systemEdge, isPinching, pinchEndedAt, panFromPinch, bounds, viewportWidth, viewportHeight],
   );
 
   // Trackpad pinch to zoom
@@ -978,9 +1000,10 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
           }
 
           isPinching.value = false;
+          pinchEndedAt.value = Date.now();
           scheduleOnRN(saveViewState);
         }),
-    [scale, translateX, translateY, pinchStartScale, pinchStartTx, pinchStartTy, pinchStartFocalX, pinchStartFocalY, prevFocalX, prevFocalY, pinchScaleBase, pinchPointers, isPinching, animCancelled, setLastAction, saveViewState],
+    [scale, translateX, translateY, pinchStartScale, pinchStartTx, pinchStartTy, pinchStartFocalX, pinchStartFocalY, prevFocalX, prevFocalY, pinchScaleBase, pinchPointers, pinchEndedAt, isPinching, animCancelled, setLastAction, saveViewState],
   );
 
   // Double-tap to zoom-to-node (#145). Composed via Gesture.Race(tap, pan) so
