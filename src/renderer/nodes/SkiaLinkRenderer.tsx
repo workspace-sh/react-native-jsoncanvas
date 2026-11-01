@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {memo} from 'react';
 import {Text, matchFont} from 'react-native-skia';
 import type {LinkNode} from '../../core';
 import {getLinkColor, getMutedTextColor, type ColorScheme} from '../theme';
@@ -31,7 +31,7 @@ function extractHostname(url: string): string {
   return match ? match[1] : url;
 }
 
-export function SkiaLinkRenderer({node, colorScheme, offsetX, offsetY}: Props) {
+function SkiaLinkRendererView({node, colorScheme, offsetX, offsetY}: Props) {
   const hostnameFont = getHostnameFont();
   const urlFont = getUrlFont();
   if (!hostnameFont || !urlFont) return null;
@@ -53,3 +53,6 @@ export function SkiaLinkRenderer({node, colorScheme, offsetX, offsetY}: Props) {
     </>
   );
 }
+
+/** Memoised: a culling update re-renders only the nodes entering or leaving, not every visible one. */
+export const SkiaLinkRenderer = memo(SkiaLinkRendererView);

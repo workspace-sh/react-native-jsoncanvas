@@ -1,4 +1,4 @@
-import React, {useMemo} from 'react';
+import React, {useMemo, memo} from 'react';
 import {
   Path,
   Skia,
@@ -264,8 +264,11 @@ function EdgeRendererInline({edge, fromNode, toNode, offsetX = 0, offsetY = 0}: 
   );
 }
 
-export function EdgeRenderer(props: Props) {
+function EdgeRendererView(props: Props) {
   return devFlags.memoizeEdgeGeometry
     ? <EdgeRendererMemoized {...props} />
     : <EdgeRendererInline {...props} />;
 }
+
+/** Memoised: a culling update re-renders only the nodes entering or leaving, not every visible one. */
+export const EdgeRenderer = memo(EdgeRendererView);
