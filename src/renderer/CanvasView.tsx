@@ -832,12 +832,11 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
 
   // macOS hover — reveals an image file node's filename (#49).
   //
-  // Coordinates arrive on the same contract as `onSmartMagnify` from the
-  // library bridge (window-global, top-left origin), so this runs the exact
-  // same normalisation: subtract the canvas origin, reject the left-overlay
-  // zone, then convert to world coords. Only the library bridge emits
-  // `onMouseMoved` — a consumer `ScrollWheelBridge` has no equivalent — so
-  // there's no source-preference dance here, unlike the two effects above.
+  // Coordinates arrive on the same contract as `onSmartMagnify`, from the
+  // same source: a host's `ScrollWheelBridge` (the canvas's own coordinates)
+  // when it has one, else the library bridge (window-global, top-left
+  // origin, less the canvas origin). Then the left-overlay zone is left out
+  // and the point converted to world coords.
   //
   // The native side throttles to ~30Hz with a 2pt movement threshold; this
   // side narrows further to state changes only, so a pointer wandering
@@ -858,8 +857,12 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
   }, []);
 
   useEffect(() => {
-    if (!jsonCanvasGestureEvents) return;
-    const sub = jsonCanvasGestureEvents.addListener(
+    // A window point less `measureInWindow`'s origin landed on the wrong
+    // card in Workspace on macOS 27, where that origin comes back negated.
+    const source = scrollWheelEvents ?? jsonCanvasGestureEvents;
+    if (!source) return;
+    const isLibraryBridge = source === jsonCanvasGestureEvents;
+    const sub = source.addListener(
       'onMouseMoved',
       (raw: unknown) => {
         const event = raw as MouseMovedEvent;
@@ -876,8 +879,8 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
         }
 
         const origin = canvasOriginRef.current;
-        const localX = event.x - origin.x;
-        const localY = event.y - origin.y;
+        const localX = isLibraryBridge ? event.x - origin.x : event.x;
+        const localY = isLibraryBridge ? event.y - origin.y : event.y;
 
         let hitId: string | null = null;
         const overlayLeft = leftOverlayWidth?.value ?? 0;
