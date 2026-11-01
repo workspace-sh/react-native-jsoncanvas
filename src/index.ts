@@ -28,9 +28,12 @@ export {
 export {createCanvasState, type CanvasState} from './core/canvas-state';
 
 // Renderer — Skia + Reanimated React Native components.
-export {CanvasView, type FindResult} from './renderer/CanvasView';
+export {CanvasView, type CanvasCamera, type FindResult, type NodeLongPress} from './renderer/CanvasView';
+export {CanvasNodePreview, canvasNodePreviewSize, type CanvasNodePreviewProps} from './renderer/CanvasNodePreview';
 export {nodesMatching} from './renderer/findNodes';
-export {CanvasMinimap, type MinimapPosition} from './renderer/CanvasMinimap';
+export {resolveFileUri} from './renderer/utils/resolveFileUri';
+export {isImageFile} from './renderer/utils/fileNodeLabel';
+export {CanvasMinimap, type Insets, type MinimapPosition} from './renderer/CanvasMinimap';
 export {getNodeColors, resolveScheme, type ColorScheme} from './renderer/theme';
 export {useCanvasContext, CanvasProvider} from './renderer/CanvasContext';
 export {activateScrollWheel, deactivateScrollWheel} from './renderer/NativeScrollWheelView';

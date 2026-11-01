@@ -1,4 +1,3 @@
-import {Platform} from 'react-native';
 import type {FileNode} from '../../core';
 
 /**
@@ -12,14 +11,12 @@ export function isImageFile(file: string): boolean {
 }
 
 /**
- * Platforms with a pointer, and therefore with hover as a reveal affordance.
- *
- * Touch platforms get theirs from the long-press context menu instead
- * (workspace-sh/react-native-jsoncanvas#74); until that lands they keep
- * always-on labels, because hiding content on a platform with no way to
- * reveal it is just losing it.
+ * Whether an image file node shows its file name in the card (`'always'`) or
+ * only when revealed (`'onReveal'`: hovering on the Mac, a long-press on a
+ * touch screen). A host's choice, through `CanvasView`'s `imageNames`; the
+ * image itself already says what the name would.
  */
-const CAN_HOVER = Platform.OS === 'macos';
+export type ImageNames = 'onReveal' | 'always';
 
 /**
  * Whether this file node draws its filename **inline** — inside its own
@@ -35,7 +32,7 @@ const CAN_HOVER = Platform.OS === 'macos';
  *
  * Non-image file nodes always answer true: the filename is their only content.
  */
-export function hasInlineLabel(node: FileNode): boolean {
+export function hasInlineLabel(node: FileNode, imageNames: ImageNames = 'onReveal'): boolean {
   if (!isImageFile(node.file)) return true;
-  return !CAN_HOVER;
+  return imageNames === 'always';
 }
