@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {memo} from 'react';
 import {Text, RoundedRect, matchFont} from 'react-native-skia';
 import type {FileNode} from '../../core';
 import {getChipBackground, getMutedTextColor, getTextColor, type ColorScheme} from '../theme';
@@ -48,7 +48,7 @@ function getSubpathFont() {
  * for the live tree during a pinch, and a hover chip baked into it would
  * freeze mid-gesture. Hover is a live-tree-only affordance.
  */
-export function SkiaFileRenderer({node, colorScheme, offsetX, offsetY, revealed = false}: Props) {
+function SkiaFileRendererView({node, colorScheme, offsetX, offsetY, revealed = false}: Props) {
   const nameFont = getNameFont();
   const subpathFont = getSubpathFont();
   if (!nameFont) return null;
@@ -127,3 +127,6 @@ export function SkiaFileRenderer({node, colorScheme, offsetX, offsetY, revealed 
     </>
   );
 }
+
+/** Memoised: a culling update re-renders only the nodes entering or leaving, not every visible one. */
+export const SkiaFileRenderer = memo(SkiaFileRendererView);

@@ -1,4 +1,4 @@
-import React, {useMemo} from 'react';
+import React, {useMemo, memo} from 'react';
 import {
   RoundedRect, DashPathEffect, Path, Oval, Group,
   LinearGradient, vec, Skia, Shadow,
@@ -98,7 +98,7 @@ function gradientPoints(x: number, y: number, w: number, h: number, deg: number)
   return {start: vec(cx - dx, cy - dy), end: vec(cx + dx, cy + dy)};
 }
 
-export function SkiaCardRenderer({node, colorScheme}: Props) {
+function SkiaCardRendererView({node, colorScheme}: Props) {
   const isGroup = node.type === 'group';
   const colors = getNodeColors(node.color, colorScheme);
 
@@ -268,3 +268,6 @@ export function SkiaCardRenderer({node, colorScheme}: Props) {
   }
   return content;
 }
+
+/** Memoised: a culling update re-renders only the nodes entering or leaving, not every visible one. */
+export const SkiaCardRenderer = memo(SkiaCardRendererView);

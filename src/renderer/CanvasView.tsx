@@ -1006,7 +1006,7 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
   // completion branch below.
   const {visibleNodes, visibleEdges, updateBounds} = useViewportCulling(
     camera, viewportWidth, viewportHeight, allNodes, allEdges,
-    {isCameraAnimating},
+    {isCameraAnimating, isPinching},
   );
 
   const contextValue = useMemo(
@@ -1031,6 +1031,8 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
           <SkiaCanvasLayer
             allNodes={visibleNodes}
             edges={visibleEdges}
+            pictureNodes={allNodes}
+            pictureEdges={allEdges}
             nodes={nodeMap}
             colorScheme={colorScheme}
             camera={camera}

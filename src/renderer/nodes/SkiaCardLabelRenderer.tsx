@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {memo} from 'react';
 import {Group, Line, Text, vec, rect, matchFont} from 'react-native-skia';
 import type {TextNode} from '../../core';
 import type {EnrichedTextNode} from '../extensions/cssclasses';
@@ -41,7 +41,7 @@ interface Props {
  * Mirrors the imperative label drawing in `useCanvasPicture.drawTextNode`
  * (canvas.rotate) so the live tree and the pinch Picture overlay match.
  */
-export function SkiaCardLabelRenderer({node, colorScheme, offsetX, offsetY}: Props) {
+function SkiaCardLabelRendererView({node, colorScheme, offsetX, offsetY}: Props) {
   const enriched = node as TextNode & Partial<EnrichedTextNode>;
   const rawContent = enriched.displayText ?? node.text;
 
@@ -119,3 +119,6 @@ export function SkiaCardLabelRenderer({node, colorScheme, offsetX, offsetY}: Pro
 
   return <Group clip={clipRegion}>{elements}</Group>;
 }
+
+/** Memoised: a culling update re-renders only the nodes entering or leaving, not every visible one. */
+export const SkiaCardLabelRenderer = memo(SkiaCardLabelRendererView);

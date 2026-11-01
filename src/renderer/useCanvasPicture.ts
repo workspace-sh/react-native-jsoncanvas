@@ -834,8 +834,8 @@ export function useCanvasPicture(inputs: RecordingInputs): SkPicture | null {
   const inFlightRef = useRef<Set<string>>(new Set());
   const [cacheVersion, setCacheVersion] = useState(0);
 
-  // Effect 1 — image loading. Depends only on allNodes (which on mobile is
-  // the culled visible set). Loads are fire-and-forget: results always merge
+  // Effect 1 — image loading. Depends only on allNodes (every node: the
+  // Picture holds the whole canvas). Loads are fire-and-forget: results always merge
   // into the persistent cache regardless of effect cancellation, and bump
   // cacheVersion to trigger a re-record in Effect 2.
   useEffect(() => {
@@ -863,15 +863,13 @@ export function useCanvasPicture(inputs: RecordingInputs): SkPicture | null {
       });
   }, [inputs.allNodes, inputs.basePath]);
 
-  // Keep a ref to the latest inputs so the recording effect can read them
-  // without depending on viewport-volatile array refs (visibleNodes/visibleEdges
-  // change on every viewport update, which would cancel the double-RAF).
+  // Keep a ref to the latest inputs so the recording effect reads them
+  // without depending on the arrays' identity.
   const inputsRef = useRef(inputs);
   inputsRef.current = inputs;
 
-  // Effect 2 — Picture recording. Depends on stable content identity
-  // (nodeMap, colorScheme) and cacheVersion, NOT on the culled node/edge
-  // arrays which change every viewport update during gestures.
+  // Effect 2 — Picture recording. Depends on content identity (nodeMap,
+  // colorScheme) and cacheVersion.
   useEffect(() => {
     let cancelled = false;
 

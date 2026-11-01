@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {memo} from 'react';
 import {Image, ImageSVG, useImage, Group, rect, fitbox, type SkSVG, type SkImage} from 'react-native-skia';
 import type {FileNode} from '../../core';
 import {devFlags} from '../devFlags';
@@ -117,10 +117,13 @@ function SkiaSvgImage({node, offsetX, offsetY, basePath}: Props) {
  * for raster formats. When loading fails for any reason the bundled
  * Netscape-style "broken image" placeholder is rendered in place.
  */
-export function SkiaImageRenderer(props: Props) {
+function SkiaImageRendererView(props: Props) {
   const {node} = props;
   const isSvg = SVG_RE.test(node.file);
   const isImage = IMAGE_RE.test(node.file) || isSvg;
   if (!isImage) return null;
   return isSvg ? <SkiaSvgImage {...props} /> : <SkiaRasterImage {...props} />;
 }
+
+/** Memoised: a culling update re-renders only the nodes entering or leaving, not every visible one. */
+export const SkiaImageRenderer = memo(SkiaImageRendererView);

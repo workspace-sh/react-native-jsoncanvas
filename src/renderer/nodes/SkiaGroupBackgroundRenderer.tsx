@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {memo} from 'react';
 import {Image, useImage, rrect, rect} from 'react-native-skia';
 import type {GroupNode} from '../../core';
 
@@ -6,7 +6,7 @@ interface Props {
   node: GroupNode;
 }
 
-export function SkiaGroupBackgroundRenderer({node}: Props) {
+function SkiaGroupBackgroundRendererView({node}: Props) {
   if (!node.background) return null;
 
   const uri = node.background.startsWith('/')
@@ -31,3 +31,6 @@ export function SkiaGroupBackgroundRenderer({node}: Props) {
     />
   );
 }
+
+/** Memoised: a culling update re-renders only the nodes entering or leaving, not every visible one. */
+export const SkiaGroupBackgroundRenderer = memo(SkiaGroupBackgroundRendererView);
