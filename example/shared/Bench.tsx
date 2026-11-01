@@ -73,14 +73,17 @@ interface DriverProps {
  * camera, so the frame callback has it from the start.
  */
 function Driver({camera, phase, t0, start, viewport, histogram, total}: DriverProps) {
+  const last = useSharedValue(-1);
   useFrameCallback((info) => {
     'worklet';
+    const now = OWN_CLOCK ? performance.now() : info.timestamp;
+    const dt = OWN_CLOCK ? (last.value < 0 ? null : now - last.value) : info.timeSincePreviousFrame;
+    last.value = now;
     if (phase.value === 0) return;
     if (t0.value < 0) {
-      t0.value = info.timestamp;
+      t0.value = now;
       return;
     }
-    const dt = info.timeSincePreviousFrame;
     if (dt !== null && dt > 0) {
       const at = Math.min(BUCKETS - 1, Math.floor(dt));
       const h = histogram.value.slice();
@@ -88,7 +91,7 @@ function Driver({camera, phase, t0, start, viewport, histogram, total}: DriverPr
       histogram.value = h;
       total.value += dt;
     }
-    const t = (info.timestamp - t0.value) / 1000;
+    const t = (now - t0.value) / 1000;
     const st = start.value;
     if (phase.value === 1) {
       const s = st.s * (1 + 0.6 * Math.sin(t * Math.PI));
@@ -104,6 +107,14 @@ function Driver({camera, phase, t0, start, viewport, histogram, total}: DriverPr
   });
   return null;
 }
+
+/**
+ * On macOS, react-native-macos's display link reports a time of 0 (its
+ * `timestamp` reads CVDisplayLinkGetCurrentTime, which comes back empty), so
+ * every frame callback gets the same timestamp. There the benchmark keeps
+ * its own clock.
+ */
+const OWN_CLOCK = Platform.OS === 'macos';
 
 const wait = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));
 
@@ -133,8 +144,9 @@ export function Bench({autorun = true, label}: {autorun?: boolean; label: string
       let jsTotal = 0;
       let last = -1;
       let running = true;
-      const tick = (now: number) => {
+      const tick = (frameTime: number) => {
         if (!running) return;
+        const now = OWN_CLOCK ? performance.now() : frameTime;
         if (last >= 0 && now > last) {
           js[Math.min(BUCKETS - 1, Math.floor(now - last))] += 1;
           jsTotal += now - last;
