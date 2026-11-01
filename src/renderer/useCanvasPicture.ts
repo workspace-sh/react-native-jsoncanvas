@@ -196,7 +196,7 @@ const RASTER_RE = /\.(png|jpg|jpeg|gif|webp|bmp|ico)$/i;
 // SVGs are excluded from Picture recording — they render live during pinch
 // to preserve vector fidelity at any zoom level.
 type ImageCacheEntry = {type: 'raster'; image: SkImage};
-type ImageCache = Map<string, ImageCacheEntry>;
+export type ImageCache = Map<string, ImageCacheEntry>;
 
 /** Extract raster image URIs from nodes (group backgrounds + file node images).
  *  SVGs are excluded — they render live during pinch for vector fidelity. */
@@ -836,6 +836,31 @@ function recordCanvasPicture(inputs: RecordingInputs, imageCache: ImageCache, de
 export function recordShapesPicture(allNodes: CanvasNode[], edges: CanvasEdge[], colorScheme: ColorScheme): SkPicture {
   const nodeMap = new Map(allNodes.map(n => [n.id, n] as const));
   return recordCanvasPicture({allNodes, edges, nodeMap, colorScheme}, new Map(), 'shapes');
+}
+
+/**
+ * A few nodes and the edges between them, recorded on their own: a node's
+ * preview (`CanvasNodePreview`). The same drawing as the canvas's, so a
+ * card looks the same lifted out as it does in place.
+ */
+export function recordNodesPicture(
+  nodes: CanvasNode[],
+  edges: CanvasEdge[],
+  colorScheme: ColorScheme,
+  basePath: string | undefined,
+  imageNames: ImageNames,
+  images: ImageCache,
+): SkPicture {
+  const groups = nodes.filter(n => n.type === 'group');
+  const others = nodes.filter(n => n.type !== 'group');
+  const allNodes = [...groups, ...others];
+  const nodeMap = new Map(allNodes.map(n => [n.id, n] as const));
+  return recordCanvasPicture({allNodes, edges, nodeMap, colorScheme, basePath, imageNames}, images, 'full');
+}
+
+/** Loads the raster images some nodes draw (file nodes, group backgrounds), for `recordNodesPicture`. */
+export function loadNodeImages(nodes: CanvasNode[], basePath?: string): Promise<ImageCache> {
+  return loadImageCache(collectImageUris(nodes, basePath));
 }
 
 /** The canvas's two recordings: everything, and the same without text for far zoomed out. */

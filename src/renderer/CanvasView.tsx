@@ -9,6 +9,7 @@ import {
   type CanvasNode,
   type CanvasEdge,
 } from '../core';
+import {nodeContents} from './nodeContents';
 import {cameraActionForResize} from './keepCameraOnResize';
 import {SkiaCanvasLayer} from './SkiaCanvasLayer';
 import {CanvasMinimap, type Insets, type MinimapPosition} from './CanvasMinimap';
@@ -148,11 +149,13 @@ interface Props {
    */
   imageNames?: ImageNames;
   /**
-   * A node was long-pressed (touch screens), at `at` in the view's
-   * coordinates: where a host shows its own menu for the node. An image's
-   * name is revealed either way.
+   * A node was long-pressed (touch screens): where a host shows its own menu
+   * for the node (the system's context menu on iOS, with
+   * `CanvasNodePreview` lifted from `frame`), and its own feedback (a
+   * haptic). With a host's menu, the canvas doesn't reveal an image's name
+   * itself: the menu says it. Without one, a long-press reveals the name.
    */
-  onNodeLongPress?: (node: CanvasNode, at: {x: number; y: number}) => void;
+  onNodeLongPress?: (node: CanvasNode, press: NodeLongPress) => void;
   /**
    * A strip along the view's left edge, in points, where a drag doesn't pan
    * the canvas but is left to the system: iOS's swipe back, when the canvas
@@ -160,6 +163,16 @@ interface Props {
    * the canvas. Defaults to 0 (the canvas pans from anywhere).
    */
   systemEdge?: number;
+}
+
+/** A long-press on a node, as `onNodeLongPress` tells a host. */
+export interface NodeLongPress {
+  /** Where the press was, in the view's coordinates. */
+  at: {x: number; y: number};
+  /** The node's card as it's drawn now, in the view's coordinates: where a menu's preview lifts from. */
+  frame: {x: number; y: number; width: number; height: number};
+  /** What a preview of the node draws: the node and, for a group, everything inside it, with the edges between them. */
+  contents: {nodes: CanvasNode[]; edges: CanvasEdge[]};
 }
 
 /** What a search of the canvas found: how many, and which of them is shown (-1 when none). */
@@ -882,9 +895,9 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
     return () => sub.remove();
   }, [canvasState, translateX, translateY, scale, isPinching, leftOverlayWidth]);
 
-  // Long-press, on a touch screen: reveals an image's name, as hovering does
-  // on the Mac, and tells the host (its own menu). The name stays until the
-  // canvas is next moved.
+  // Long-press, on a touch screen: tells the host (its own menu), or, with
+  // none, reveals an image's name, as hovering does on the Mac. The name
+  // stays until the canvas is next moved.
   const nameRevealed = useSharedValue(false);
   const onNodeLongPressRef = useRef(onNodeLongPress);
   onNodeLongPressRef.current = onNodeLongPress;
@@ -894,11 +907,18 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
     const hits = canvasState?.hitTest(wx, wy) ?? [];
     // Smallest-area-wins, as double-tap and hover: a file node in a group means the file node.
     const hit = hits.length > 0 ? hits.reduce((a, b) => (a.width * a.height < b.width * b.height ? a : b)) : null;
+    const host = onNodeLongPressRef.current;
+    if (host) {
+      if (!hit || !canvasState) return;
+      const s = scale.value;
+      const frame = {x: hit.x * s + translateX.value, y: hit.y * s + translateY.value, width: hit.width * s, height: hit.height * s};
+      host(hit, {at: {x, y}, frame, contents: nodeContents(hit, canvasState)});
+      return;
+    }
     const fileId = hit?.type === 'file' ? hit.id : null;
     hoveredFileNodeIdRef.current = fileId;
     setHoveredFileNodeId(fileId);
     nameRevealed.value = fileId !== null;
-    if (hit) onNodeLongPressRef.current?.(hit, {x, y});
   }, [canvasState, translateX, translateY, scale, nameRevealed]);
   const hideRevealed = useCallback(() => {
     if (Platform.OS === 'macos') return; // the Mac's chip follows the pointer
