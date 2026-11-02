@@ -11,6 +11,7 @@ import {
 } from '../core';
 import {nodeContents} from './nodeContents';
 import {cameraActionForResize} from './keepCameraOnResize';
+import {fitCamera} from './fitCamera';
 import {SkiaCanvasLayer} from './SkiaCanvasLayer';
 import {CanvasMinimap, type Insets, type MinimapPosition} from './CanvasMinimap';
 import {nodesMatching} from './findNodes';
@@ -64,7 +65,7 @@ interface Props {
    * sidebar bookkeeping. Mobile / web pass nothing.
    */
   onReady?: (controls: {
-    fitToViewport: (leftOverlayWidth?: number) => void;
+    fitToViewport: (leftOverlayWidth?: number, options?: {animated?: boolean}) => void;
     recenter: (leftOverlayWidth?: number) => void;
     /**
      * Returns the user's most recent explicit camera intent. Used by the
@@ -174,6 +175,13 @@ interface Props {
    * the canvas. Defaults to 0 (the canvas pans from anywhere).
    */
   systemEdge?: number;
+  /**
+   * Kept clear above and below the content when it's fitted (on opening, and
+   * by Fit), in points: the content stays centred down the whole view, and no
+   * nearer its top or bottom than this. A host whose bar sits over the
+   * canvas's top passes the bar's height. Defaults to 0.
+   */
+  fitMargin?: number;
 }
 
 /** A long-press on a node, as `onNodeLongPress` tells a host. */
@@ -235,7 +243,7 @@ const CAMERA_ANIM_DURATION_MS = 300;
  * break rendering). Content changes flow through React reconciliation via
  * useMemo/useLayoutEffect on the content prop.
  */
-export function CanvasView({content, basePath, initialViewState, onViewStateChange, onReady, doubleTapMaxDelayMs, minimap = 'bottom-right', minimapBottomInset = 0, safeAreaInsets, leftOverlayWidth, minimapBackground, minimapCornerRadius, minimapSize, imageNames = 'onReveal', onNodeLongPress, onNodeContextMenu, systemEdge = 0}: Props) {
+export function CanvasView({content, basePath, initialViewState, onViewStateChange, onReady, doubleTapMaxDelayMs, minimap = 'bottom-right', minimapBottomInset = 0, safeAreaInsets, leftOverlayWidth, minimapBackground, minimapCornerRadius, minimapSize, imageNames = 'onReveal', onNodeLongPress, onNodeContextMenu, systemEdge = 0, fitMargin = 0}: Props) {
   // `useWindowDimensions` returns the whole application window — on desktop
   // that includes the sidebar pane that sits to the left of the canvas
   // viewport. Computing "centre" against full-window dimensions lands the
@@ -411,16 +419,13 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
       ty = initialViewState.translateY;
       s = initialViewState.scale;
     } else {
-      // Fit content to viewport, never zooming beyond 1:1
-      const sw = initialScreenRef.current.w;
-      const sh = initialScreenRef.current.h;
-      // Same fit-to-bounds maths as fitToViewport — see that comment.
-      s = Math.max(
-        MIN_SCALE,
-        Math.min(MAX_SCALE, Math.min(sw / bounds.width, sh / bounds.height)),
-      );
-      tx = sw / 2 - (bounds.x + bounds.width / 2) * s;
-      ty = sh / 2 - (bounds.y + bounds.height / 2) * s;
+      // Opened as Fit leaves it: the same fit, and a fit a resize keeps.
+      ({tx, ty, s} = fitCamera(
+        {width: initialScreenRef.current.w, height: initialScreenRef.current.h, left: leftOverlayWidth?.value ?? 0, margin: fitMargin},
+        bounds,
+        {min: MIN_SCALE, max: MAX_SCALE},
+      ));
+      lastActionRef.current = 'fit';
     }
 
     scale.value = s;
@@ -547,29 +552,29 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
   // (handleDoubleTap, tapGesture) does NOT recompose when the sidebar
   // changes. That's load-bearing for #154 — earlier attempts that put
   // sidebar state in deps regressed double-tap.
-  const fitToViewport = useCallback((leftOverlayWidth: number = 0) => {
+  const fitToViewport = useCallback((leftOverlayWidth: number = 0, options?: {animated?: boolean}) => {
     lastActionRef.current = 'fit';
-    const sw = viewportWidth;
-    const sh = viewportHeight;
-    const visibleW = Math.max(1, sw - leftOverlayWidth);
-    const centreX = leftOverlayWidth + visibleW / 2;
-
-    // Empty / degenerate bounds (e.g. a canvas with no nodes) — centre the
-    // world origin in the viewport at 1:1 rather than dividing by zero
-    // and hoping Infinity propagates through Math.min cleanly.
-    if (bounds.width <= 0 || bounds.height <= 0) {
-      animateCamera(centreX, sh / 2, 1);
+    const {tx, ty, s} = fitCamera(
+      {width: viewportWidth, height: viewportHeight, left: leftOverlayWidth, margin: fitMargin},
+      bounds,
+      {min: MIN_SCALE, max: MAX_SCALE},
+    );
+    if (options?.animated === false) {
+      // Straight there, as opening does.
+      cancelCameraAnim();
+      translateX.value = tx;
+      translateY.value = ty;
+      scale.value = s;
+      prevTranslateX.value = tx;
+      prevTranslateY.value = ty;
+      updateBounds(tx, ty, s);
+      saveViewState();
       return;
     }
-
-    const s = Math.max(
-      MIN_SCALE,
-      Math.min(MAX_SCALE, Math.min(visibleW / bounds.width, sh / bounds.height)),
-    );
-    const tx = centreX - (bounds.x + bounds.width / 2) * s;
-    const ty = sh / 2 - (bounds.y + bounds.height / 2) * s;
     animateCamera(tx, ty, s);
-  }, [viewportWidth, viewportHeight, bounds, animateCamera]);
+    // `updateBounds` is declared below; read when called, as animateCamera does.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewportWidth, viewportHeight, bounds, animateCamera, fitMargin, cancelCameraAnim, saveViewState]);
 
   // Zoom to fit a single node in the viewport with a small screen-space
   // padding. Soft-capped at NODE_FIT_SOFT_MAX_SCALE so tiny stencils don't
@@ -724,7 +729,7 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
 
   useEffect(() => {
     onReady?.({
-      fitToViewport: (leftOverlayWidth?: number) => fitRef.current(leftOverlayWidth),
+      fitToViewport: (leftOverlayWidth?: number, options?: {animated?: boolean}) => fitRef.current(leftOverlayWidth, options),
       recenter: (leftOverlayWidth?: number) => recenterRef.current(leftOverlayWidth),
       getLastAction: () => lastActionRef.current,
       camera: {translateX, translateY, scale, isPinching},
