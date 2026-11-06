@@ -1,4 +1,4 @@
-import {useCallback, useRef, type ReactElement} from 'react';
+import {useCallback, useEffect, useRef, type ReactElement} from 'react';
 import {StyleSheet, View} from 'react-native';
 import {
   Box,
@@ -32,8 +32,12 @@ const ICON_SIZE = 24;
  */
 export function CanvasNodeMenu({node, press, items, title, onSelect, onDismiss}: CanvasNodeMenuProps): ReactElement | null {
   const colors = useMaterialColors();
-  // Choosing an action closes the menu too: dismiss once, whichever came first.
+  // Choosing an action closes the menu too: dismiss once, whichever came
+  // first, once for each press (a host may keep one instance mounted).
   const closed = useRef(false);
+  useEffect(() => {
+    closed.current = false;
+  }, [press]);
   const dismiss = useCallback(() => {
     if (closed.current) return;
     closed.current = true;
