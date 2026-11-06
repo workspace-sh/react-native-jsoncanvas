@@ -1,5 +1,6 @@
 import React, {memo} from 'react';
 import {Text, RoundedRect, matchFont} from 'react-native-skia';
+import {canvasFont} from '../fonts';
 import type {GroupNode} from '../../core';
 import {getNodeColors, type ColorScheme} from '../theme';
 import {GROUP_LABEL} from '../metrics';
@@ -15,7 +16,7 @@ interface Props {
 
 let _font: ReturnType<typeof matchFont> | null = null;
 function getFont() {
-  if (!_font) _font = matchFont({fontFamily: SYSTEM_FONT, fontSize: FONT_SIZE.groupLabel, fontWeight: 'bold'});
+  if (!_font) _font = canvasFont({fontFamily: SYSTEM_FONT, fontSize: FONT_SIZE.groupLabel, fontWeight: 'bold'});
   return _font;
 }
 

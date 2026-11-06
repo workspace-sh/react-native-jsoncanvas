@@ -1,5 +1,6 @@
 import React, {memo} from 'react';
 import {Text, matchFont} from 'react-native-skia';
+import {canvasFont} from '../fonts';
 import type {LinkNode} from '../../core';
 import {getLinkColor, getMutedTextColor, type ColorScheme} from '../theme';
 import {LINK, NODE} from '../metrics';
@@ -17,12 +18,12 @@ let _hostnameFont: ReturnType<typeof matchFont> | null = null;
 let _urlFont: ReturnType<typeof matchFont> | null = null;
 
 function getHostnameFont() {
-  if (!_hostnameFont) _hostnameFont = matchFont({fontFamily: SYSTEM_FONT, fontSize: FONT_SIZE.linkHostname, fontWeight: 'bold'});
+  if (!_hostnameFont) _hostnameFont = canvasFont({fontFamily: SYSTEM_FONT, fontSize: FONT_SIZE.linkHostname, fontWeight: 'bold'});
   return _hostnameFont;
 }
 
 function getUrlFont() {
-  if (!_urlFont) _urlFont = matchFont({fontFamily: SYSTEM_FONT, fontSize: FONT_SIZE.linkUrl});
+  if (!_urlFont) _urlFont = canvasFont({fontFamily: SYSTEM_FONT, fontSize: FONT_SIZE.linkUrl});
   return _urlFont;
 }
 

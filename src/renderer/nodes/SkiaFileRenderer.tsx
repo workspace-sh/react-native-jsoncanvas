@@ -1,5 +1,6 @@
 import React, {memo} from 'react';
 import {Text, RoundedRect, matchFont} from 'react-native-skia';
+import {canvasFont} from '../fonts';
 import {SYSTEM_FONT} from '../typography';
 import type {FileNode} from '../../core';
 import {getChipBackground, getMutedTextColor, getTextColor, type ColorScheme} from '../theme';
@@ -24,12 +25,12 @@ let _nameFont: ReturnType<typeof matchFont> | null = null;
 let _subpathFont: ReturnType<typeof matchFont> | null = null;
 
 function getNameFont() {
-  if (!_nameFont) _nameFont = matchFont({fontFamily: SYSTEM_FONT, fontSize: 12, fontWeight: 'bold'});
+  if (!_nameFont) _nameFont = canvasFont({fontFamily: SYSTEM_FONT, fontSize: 12, fontWeight: 'bold'});
   return _nameFont;
 }
 
 function getSubpathFont() {
-  if (!_subpathFont) _subpathFont = matchFont({fontFamily: SYSTEM_FONT, fontSize: 10});
+  if (!_subpathFont) _subpathFont = canvasFont({fontFamily: SYSTEM_FONT, fontSize: 10});
   return _subpathFont;
 }
 
