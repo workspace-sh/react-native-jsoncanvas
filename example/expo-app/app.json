@@ -11,6 +11,7 @@
       "bundleIdentifier": "com.leslieoa.playground"
     },
     "android": {
+      "package": "com.leslieoa.playground",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
