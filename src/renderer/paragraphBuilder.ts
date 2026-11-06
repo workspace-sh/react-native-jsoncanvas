@@ -12,6 +12,7 @@
 import {Skia, TextDecoration} from 'react-native-skia';
 import type {SkParagraph, SkTextStyle, SkColor} from 'react-native-skia';
 import {paragraphRuns, type TextSegment, type SegmentStyle} from './markdown';
+import {SYSTEM_FONT} from './typography';
 import {getLinkColor, getMutedTextColor, getTextColor, type ColorScheme} from './theme';
 
 export interface ParagraphColours {
@@ -41,6 +42,16 @@ export function getParagraphColours(colorScheme: ColorScheme): ParagraphColours 
   return colorScheme === 'dark' ? PARAGRAPH_COLOURS.dark : PARAGRAPH_COLOURS.light;
 }
 
+/**
+ * The families a style's font is looked for in, first found wins. Code asks
+ * for Menlo, which Android doesn't have: there it falls back to the system's
+ * monospace font rather than to the default sans.
+ */
+function fontFamiliesFor(family: string | undefined): string[] {
+  if (family === 'Menlo') return ['Menlo', 'monospace'];
+  return [family ?? SYSTEM_FONT];
+}
+
 function toSkTextStyle(style: SegmentStyle, c: ParagraphColours): SkTextStyle {
   const color = style.color === 'muted' ? c.muted
     : style.color === 'link' ? c.link
@@ -48,7 +59,7 @@ function toSkTextStyle(style: SegmentStyle, c: ParagraphColours): SkTextStyle {
 
   const result: SkTextStyle = {
     fontSize: style.fontSize,
-    fontFamilies: [style.fontFamily ?? 'System'],
+    fontFamilies: fontFamiliesFor(style.fontFamily),
     color,
     heightMultiplier: style.lineHeight / style.fontSize,
   };
@@ -79,7 +90,7 @@ export function buildParagraph(
   if (segments.length === 0) return null;
 
   const builder = Skia.ParagraphBuilder.Make({
-    textStyle: {fontSize: 13, color: colours.text, fontFamilies: ['System']},
+    textStyle: {fontSize: 13, color: colours.text, fontFamilies: [SYSTEM_FONT]},
   });
 
   for (const run of paragraphRuns(segments)) {

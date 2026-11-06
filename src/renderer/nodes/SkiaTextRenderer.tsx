@@ -3,12 +3,13 @@ import {
   Group, Line, vec, matchFont, Text, rect,
   Paragraph as SkiaParagraph,
 } from 'react-native-skia';
+import {canvasFont} from '../fonts';
 import type {TextNode} from '../../core';
 import type {EnrichedTextNode} from '../extensions/cssclasses';
 import {hasCallouts, parseCallouts, getHeader, getFooter, getCenteredCallout} from '../extensions/callouts';
 import {getMutedTextColor, getTextColor, type ColorScheme} from '../theme';
 import {NODE, ZONE} from '../metrics';
-import {H4, type FontConfig} from '../typography';
+import {H4, SYSTEM_FONT, type FontConfig} from '../typography';
 import {parseToSegments, toPlainText} from '../markdown';
 import {buildParagraph, getParagraphColours} from '../paragraphBuilder';
 import {shapeClipPath} from './shapes';
@@ -27,15 +28,15 @@ interface Props {
 
 const fontCache = new Map<string, ReturnType<typeof matchFont>>();
 function getFont(config: FontConfig) {
-  const key = `${config.fontSize}-${config.fontWeight ?? 'normal'}-${config.fontFamily ?? 'System'}`;
+  const key = `${config.fontSize}-${config.fontWeight ?? 'normal'}-${config.fontFamily ?? SYSTEM_FONT}`;
   let f = fontCache.get(key);
   if (!f) {
     const spec: Parameters<typeof matchFont>[0] = {
-      fontFamily: config.fontFamily ?? 'System',
+      fontFamily: config.fontFamily ?? SYSTEM_FONT,
       fontSize: config.fontSize,
     };
     if (config.fontWeight) spec.fontWeight = config.fontWeight;
-    f = matchFont(spec);
+    f = canvasFont(spec);
     fontCache.set(key, f);
   }
   return f;
