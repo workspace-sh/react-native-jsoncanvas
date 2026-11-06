@@ -64,6 +64,7 @@ the library ships every gesture it supports as a default.
 | Ctrl + scroll to zoom         | —   | —       | — | ✓ (about the pointer) |
 | Double-tap to zoom-to-node    | ✓   | ✓       | ✓ (trackpad two-finger double-tap, a.k.a. Smart Zoom) | — |
 | Inertial fling                | ✓   | ✓       | — (macOS pan is direct, no inertia) | — |
+| Long-press a card             | ✓ (`onNodeLongPress`) | ✓ (`onNodeLongPress`) | — (right-click: `onNodeContextMenu`) | — |
 
 ### iOS / Android (Expo or bare RN)
 
@@ -82,6 +83,44 @@ npm install @workspace.sh/react-native-jsoncanvas \
 Expo: works in any SDK that supports the peer-dep range. Use
 `expo install` if you prefer Expo's version-pinning. No native config
 needed in `app.json`.
+
+### A card's menu
+
+A long-press on a card calls `onNodeLongPress(node, press)`, with where the
+card is drawn (`press.frame`). The actions are the host's; what shows them
+is the platform's:
+
+- **iOS:** the system's context menu, with `CanvasNodePreview` lifted from
+  `press.frame` (Workspace uses `react-native-ios-context-menu`).
+- **Android:** `CanvasNodeMenu`, from its own entry point, is Material 3's
+  dropdown menu (Jetpack Compose, through
+  [Expo UI](https://docs.expo.dev/versions/latest/sdk/ui/)) anchored to the
+  card: below it, or above it with no room below, lined up with its leading
+  edge, and the card outlined while the menu is open. It needs `@expo/ui`
+  (an optional peer, so the package root doesn't); icons are Material
+  Symbols' vector drawables, from `@expo/material-symbols`. Elsewhere it
+  draws nothing.
+
+```tsx
+import {CanvasNodeMenu} from '@workspace.sh/react-native-jsoncanvas/menu';
+
+const [pressed, setPressed] = useState<{node: CanvasNode; press: NodeLongPress} | null>(null);
+
+<CanvasView content={json} onNodeLongPress={(node, press) => setPressed({node, press})} />
+{pressed && (
+  <CanvasNodeMenu
+    node={pressed.node}
+    press={pressed.press}
+    items={[{key: 'copy', title: 'Copy text', icon: require('@expo/material-symbols/content_copy.xml')}]}
+    onSelect={key => run(key, pressed.node)}
+    onDismiss={() => setPressed(null)}
+  />
+)}
+```
+
+Render it beside the `CanvasView`, in the same coordinates. The example app
+(`example/expo-app/nodeMenu.tsx`) offers what Workspace does: copy, share
+and open.
 
 ### macOS (`react-native-macos`)
 
@@ -211,7 +250,7 @@ consumer (Workspace's Linux client). See `AGENTS.md`.
 Example harnesses live under `example/` and follow the org's standard layout
 (mirrors `react-native-source-editor/example/*`):
 
-- **`example/expo-app/`** — Expo SDK 55 host serving iOS + Android. Uses Expo
+- **`example/expo-app/`** — Expo SDK 58 host serving iOS + Android. Uses Expo
   CNG, owned by `expo prebuild` — never run `pod install` (iOS) or hand-edit
   `android/` here manually.
 - **`example/macos-app/`** — `react-native-macos` 0.81 host. Tracked in #21.
