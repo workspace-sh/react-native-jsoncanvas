@@ -3,6 +3,7 @@ import {
   Group, Line, vec, matchFont, Text, rect,
   Paragraph as SkiaParagraph,
 } from 'react-native-skia';
+import {canvasFont} from '../fonts';
 import type {TextNode} from '../../core';
 import type {EnrichedTextNode} from '../extensions/cssclasses';
 import {hasCallouts, parseCallouts, getHeader, getFooter, getCenteredCallout} from '../extensions/callouts';
@@ -35,7 +36,7 @@ function getFont(config: FontConfig) {
       fontSize: config.fontSize,
     };
     if (config.fontWeight) spec.fontWeight = config.fontWeight;
-    f = matchFont(spec);
+    f = canvasFont(spec);
     fontCache.set(key, f);
   }
   return f;

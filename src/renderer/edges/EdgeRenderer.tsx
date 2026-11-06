@@ -7,6 +7,7 @@ import {
   Group,
   matchFont,
 } from 'react-native-skia';
+import {canvasFont} from '../fonts';
 import type {CanvasEdge, CanvasNode, EdgeSide} from '../../core';
 import {devFlags} from '../devFlags';
 import {EDGE_LABEL_TEXT_COLOR, resolveEdgeColor} from '../theme';
@@ -23,7 +24,7 @@ interface Props {
 
 let _labelFont: ReturnType<typeof matchFont> | null = null;
 function getLabelFont() {
-  if (!_labelFont) _labelFont = matchFont({fontFamily: SYSTEM_FONT, fontSize: FONT_SIZE.edgeLabel});
+  if (!_labelFont) _labelFont = canvasFont({fontFamily: SYSTEM_FONT, fontSize: FONT_SIZE.edgeLabel});
   return _labelFont;
 }
 

@@ -1,5 +1,6 @@
 import React, {memo} from 'react';
 import {Group, Line, Text, vec, rect, matchFont} from 'react-native-skia';
+import {canvasFont} from '../fonts';
 import type {TextNode} from '../../core';
 import type {EnrichedTextNode} from '../extensions/cssclasses';
 import {hasCallouts, parseCallouts, getLabels} from '../extensions/callouts';
@@ -14,7 +15,7 @@ const DEG_TO_RAD = Math.PI / 180;
 let _labelFont: ReturnType<typeof matchFont> | null = null;
 function getLabelFont() {
   if (!_labelFont) {
-    _labelFont = matchFont({fontFamily: SYSTEM_FONT, fontSize: H4.fontSize, fontWeight: 'bold'});
+    _labelFont = canvasFont({fontFamily: SYSTEM_FONT, fontSize: H4.fontSize, fontWeight: 'bold'});
   }
   return _labelFont;
 }
