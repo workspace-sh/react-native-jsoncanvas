@@ -12,6 +12,7 @@
 import {Skia, TextDecoration} from 'react-native-skia';
 import type {SkParagraph, SkTextStyle, SkColor} from 'react-native-skia';
 import {paragraphRuns, type TextSegment, type SegmentStyle} from './markdown';
+import {SYSTEM_FONT} from './typography';
 import {getLinkColor, getMutedTextColor, getTextColor, type ColorScheme} from './theme';
 
 export interface ParagraphColours {
@@ -48,7 +49,7 @@ export function getParagraphColours(colorScheme: ColorScheme): ParagraphColours 
  */
 function fontFamiliesFor(family: string | undefined): string[] {
   if (family === 'Menlo') return ['Menlo', 'monospace'];
-  return [family ?? 'System'];
+  return [family ?? SYSTEM_FONT];
 }
 
 function toSkTextStyle(style: SegmentStyle, c: ParagraphColours): SkTextStyle {
@@ -89,7 +90,7 @@ export function buildParagraph(
   if (segments.length === 0) return null;
 
   const builder = Skia.ParagraphBuilder.Make({
-    textStyle: {fontSize: 13, color: colours.text, fontFamilies: ['System']},
+    textStyle: {fontSize: 13, color: colours.text, fontFamilies: [SYSTEM_FONT]},
   });
 
   for (const run of paragraphRuns(segments)) {

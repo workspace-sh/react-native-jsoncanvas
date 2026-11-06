@@ -3,7 +3,7 @@ import {Text, RoundedRect, matchFont} from 'react-native-skia';
 import type {GroupNode} from '../../core';
 import {getNodeColors, type ColorScheme} from '../theme';
 import {GROUP_LABEL} from '../metrics';
-import {FONT_SIZE} from '../typography';
+import {FONT_SIZE, SYSTEM_FONT} from '../typography';
 
 interface Props {
   node: GroupNode;
@@ -15,7 +15,7 @@ interface Props {
 
 let _font: ReturnType<typeof matchFont> | null = null;
 function getFont() {
-  if (!_font) _font = matchFont({fontFamily: 'System', fontSize: FONT_SIZE.groupLabel, fontWeight: 'bold'});
+  if (!_font) _font = matchFont({fontFamily: SYSTEM_FONT, fontSize: FONT_SIZE.groupLabel, fontWeight: 'bold'});
   return _font;
 }
 

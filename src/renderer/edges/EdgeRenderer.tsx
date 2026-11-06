@@ -11,7 +11,7 @@ import type {CanvasEdge, CanvasNode, EdgeSide} from '../../core';
 import {devFlags} from '../devFlags';
 import {EDGE_LABEL_TEXT_COLOR, resolveEdgeColor} from '../theme';
 import {EDGE_LABEL} from '../metrics';
-import {FONT_SIZE} from '../typography';
+import {FONT_SIZE, SYSTEM_FONT} from '../typography';
 
 interface Props {
   edge: CanvasEdge;
@@ -23,7 +23,7 @@ interface Props {
 
 let _labelFont: ReturnType<typeof matchFont> | null = null;
 function getLabelFont() {
-  if (!_labelFont) _labelFont = matchFont({fontFamily: 'System', fontSize: FONT_SIZE.edgeLabel});
+  if (!_labelFont) _labelFont = matchFont({fontFamily: SYSTEM_FONT, fontSize: FONT_SIZE.edgeLabel});
   return _labelFont;
 }
 
