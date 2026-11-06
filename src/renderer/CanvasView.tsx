@@ -192,6 +192,8 @@ export interface NodeLongPress {
   frame: {x: number; y: number; width: number; height: number};
   /** What a preview of the node draws: the node and, for a group, everything inside it, with the edges between them. */
   contents: {nodes: CanvasNode[]; edges: CanvasEdge[]};
+  /** The view's size: what of `frame` is on screen, for a menu anchored to the card. */
+  viewport: {width: number; height: number};
 }
 
 /** What a search of the canvas found: how many, and which of them is shown (-1 when none). */
@@ -932,8 +934,8 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
     if (!canvasState) return null;
     const s = scale.value;
     const frame = {x: node.x * s + translateX.value, y: node.y * s + translateY.value, width: node.width * s, height: node.height * s};
-    return {at: {x, y}, frame, contents: nodeContents(node, canvasState)};
-  }, [canvasState, translateX, translateY, scale]);
+    return {at: {x, y}, frame, contents: nodeContents(node, canvasState), viewport: {width: viewportWidth, height: viewportHeight}};
+  }, [canvasState, translateX, translateY, scale, viewportWidth, viewportHeight]);
   const revealAt = useCallback((x: number, y: number) => {
     const hit = nodeAt(x, y);
     const host = onNodeLongPressRef.current;
