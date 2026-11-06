@@ -107,6 +107,8 @@ import {CanvasNodeMenu} from '@workspace.sh/react-native-jsoncanvas/menu';
 const [pressed, setPressed] = useState<{node: CanvasNode; press: NodeLongPress} | null>(null);
 
 <CanvasView content={json} onNodeLongPress={(node, press) => setPressed({node, press})} />
+{/* Mounted per press here; one kept-mounted instance works too: each new
+    `press` opens it afresh and is dismissed once. */}
 {pressed && (
   <CanvasNodeMenu
     node={pressed.node}
