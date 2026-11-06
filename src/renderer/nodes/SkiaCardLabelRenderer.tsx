@@ -6,7 +6,7 @@ import {hasCallouts, parseCallouts, getLabels} from '../extensions/callouts';
 import {toPlainText} from '../markdown';
 import {getMutedTextColor, getTextColor, type ColorScheme} from '../theme';
 import {ZONE} from '../metrics';
-import {H4} from '../typography';
+import {H4, SYSTEM_FONT} from '../typography';
 import {shapeClipPath} from './shapes';
 
 const DEG_TO_RAD = Math.PI / 180;
@@ -14,7 +14,7 @@ const DEG_TO_RAD = Math.PI / 180;
 let _labelFont: ReturnType<typeof matchFont> | null = null;
 function getLabelFont() {
   if (!_labelFont) {
-    _labelFont = matchFont({fontFamily: 'System', fontSize: H4.fontSize, fontWeight: 'bold'});
+    _labelFont = matchFont({fontFamily: SYSTEM_FONT, fontSize: H4.fontSize, fontWeight: 'bold'});
   }
   return _labelFont;
 }
