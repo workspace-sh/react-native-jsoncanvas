@@ -77,6 +77,8 @@ export interface BenchRow {
   label: string;
   nodes: number;
   readyMs: number;
+  /** From the fit until the JavaScript thread is free again (it records the Picture meanwhile), less the second of calm it waits for. */
+  busyMs: number;
   phases: Record<PhaseName, {ui: Stats; js: Stats}>;
 }
 
@@ -172,6 +174,28 @@ function Driver({camera, phase, t0, start, viewport, histogram, total, phaseWind
 const OWN_CLOCK = Platform.OS === 'macos';
 
 const wait = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));
+
+/**
+ * Resolves once the JavaScript thread has run a second of frames with none
+ * over 50 ms: a large canvas records its Picture after it opens, which holds
+ * the thread for seconds at 10,000 nodes, and a phase measured then measures
+ * that instead. Gives up after 20 s.
+ */
+function jsIdle(): Promise<void> {
+  return new Promise((done) => {
+    const began = Date.now();
+    let calm = Date.now();
+    let last = Date.now();
+    const tick = () => {
+      const now = Date.now();
+      if (now - last > 50) calm = now;
+      last = now;
+      if (now - calm >= 1000 || now - began > 20000) done();
+      else requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
+}
 
 interface Camera {
   tx: number;
@@ -305,7 +329,10 @@ export function Bench({autorun = true, label}: {autorun?: boolean; label: string
       const readyMs = Math.round(performance.now() - began);
       setCamera(controls.camera);
       controls.fitToViewport();
+      const fittedAt = performance.now();
       await wait(SETTLE_MS);
+      await jsIdle();
+      const busyMs = Math.round(performance.now() - fittedAt - 1000);
       const cam = controls.camera;
       const here = (): Camera => ({tx: cam.translateX.value, ty: cam.translateY.value, s: cam.scale.value});
       const fitted = here();
@@ -336,12 +363,13 @@ export function Bench({autorun = true, label}: {autorun?: boolean; label: string
         }
         if (which === 'pinch') cam.isPinching.value = false;
       }
-      const row: BenchRow = {label: c.label, nodes: c.nodes, readyMs, phases};
+      const row: BenchRow = {label: c.label, nodes: c.nodes, readyMs, busyMs, phases};
       out.push(row);
       setRows([...out]);
       console.warn(`[BENCH] ${label} ${JSON.stringify(row)}`);
     }
     setStatus('Done');
+    console.warn('[BENCH-DONE]');
     setBenchCase(null);
   }, [label, measure, remount, start, viewport]);
 
@@ -371,7 +399,7 @@ export function Bench({autorun = true, label}: {autorun?: boolean; label: string
         <Text style={styles.title}>{`${label}: ${status}  ${live}`}</Text>
         {rows.map((r) => (
           <Text key={r.label} style={styles.row}>
-            {`${r.label} nodes, ready in ${r.readyMs} ms` + PHASES.map((p) => `\n  ${p.padEnd(9)} UI ${cell(r.phases[p].ui)}\n            JS ${cell(r.phases[p].js)}`).join('')}
+            {`${r.label} nodes, ready in ${r.readyMs} ms, JS busy ${r.busyMs} ms` + (Object.keys(r.phases) as PhaseName[]).map((p) => `\n  ${p.padEnd(9)} UI ${cell(r.phases[p].ui)}\n            JS ${cell(r.phases[p].js)}`).join('')}
           </Text>
         ))}
       </ScrollView>
