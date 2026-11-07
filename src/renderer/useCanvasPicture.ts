@@ -776,18 +776,10 @@ interface RecordingInputs {
  */
 export type RecordingDetail = 'full' | 'overview' | 'shapes';
 
-function recordCanvasPicture(inputs: RecordingInputs, imageCache: ImageCache, detail: RecordingDetail = 'full'): SkPicture {
-  const {allNodes, edges, nodeMap, colorScheme, basePath, imageNames = 'onReveal'} = inputs;
-  const text = detail === 'full';
-  const images = detail !== 'shapes';
-
+/** What `recordCanvasPicture` and `recordLayers` draw from: the nodes' kinds sorted out once. */
+function sortInputs(inputs: RecordingInputs) {
+  const {allNodes, edges, nodeMap} = inputs;
   const groupNodes = allNodes.filter((n): n is GroupNode => n.type === 'group');
-  const nonGroupNodes = allNodes.filter(n => n.type !== 'group');
-  const textNodes = allNodes.filter((n): n is TextNode => n.type === 'text');
-  const linkNodes = allNodes.filter((n): n is LinkNode => n.type === 'link');
-  const fileNodes = allNodes.filter((n): n is FileNode => n.type === 'file');
-  const labelledGroups = groupNodes.filter(n => !!n.label);
-
   const resolvedEdges = edges
     .map(e => {
       const f = nodeMap.get(e.fromNode);
@@ -809,28 +801,86 @@ function recordCanvasPicture(inputs: RecordingInputs, imageCache: ImageCache, de
     ? {x: minX - pad, y: minY - pad, width: maxX - minX + pad * 2, height: maxY - minY + pad * 2}
     : {x: 0, y: 0, width: 1, height: 1};
 
+  return {
+    groupNodes,
+    nonGroupNodes: allNodes.filter(n => n.type !== 'group'),
+    textNodes: allNodes.filter((n): n is TextNode => n.type === 'text'),
+    linkNodes: allNodes.filter((n): n is LinkNode => n.type === 'link'),
+    fileNodes: allNodes.filter((n): n is FileNode => n.type === 'file'),
+    labelledGroups: groupNodes.filter(n => !!n.label),
+    resolvedEdges,
+    bounds,
+  };
+}
+
+type Sorted = ReturnType<typeof sortInputs>;
+
+/**
+ * The canvas's drawing, layer by layer, bottom to top. Each layer is its own
+ * Picture, so a change that touches one (images finishing loading) records
+ * that one again rather than everything, and the overview is the full
+ * drawing less its text layers rather than a second recording. Drawn one
+ * after another they make exactly the drawing one recording makes.
+ */
+const LAYERS = {
+  /** Layer 1: group cards. */
+  groups: (canvas: SkCanvas, d: Sorted, inputs: RecordingInputs) => {
+    for (const node of d.groupNodes) drawCard(canvas, node, inputs.colorScheme);
+  },
+  /** Layer 2: group background images. */
+  groupImages: (canvas: SkCanvas, d: Sorted, inputs: RecordingInputs, images: ImageCache) => {
+    for (const node of d.groupNodes) drawGroupBackground(canvas, node, images, inputs.basePath);
+  },
+  /** Layers 3 and 4: edges, then the other cards. */
+  shapes: (canvas: SkCanvas, d: Sorted, inputs: RecordingInputs) => {
+    for (const {edge, fromNode, toNode} of d.resolvedEdges) drawEdge(canvas, edge, fromNode, toNode);
+    for (const node of d.nonGroupNodes) drawCard(canvas, node, inputs.colorScheme);
+  },
+  /** Layer 5: text, links and file labels. */
+  text: (canvas: SkCanvas, d: Sorted, inputs: RecordingInputs) => {
+    for (const node of d.textNodes) drawTextNode(canvas, node, inputs.colorScheme);
+    for (const node of d.linkNodes) drawLinkNode(canvas, node, inputs.colorScheme);
+    for (const node of d.fileNodes) drawFileLabel(canvas, node, inputs.colorScheme, inputs.imageNames ?? 'onReveal');
+  },
+  /** Layer 5: file images. */
+  fileImages: (canvas: SkCanvas, d: Sorted, inputs: RecordingInputs, images: ImageCache) => {
+    for (const node of d.fileNodes) drawFileImage(canvas, node, images, inputs.basePath, inputs.imageNames ?? 'onReveal');
+  },
+  /** Layer 6: group labels. */
+  groupLabels: (canvas: SkCanvas, d: Sorted, inputs: RecordingInputs) => {
+    for (const node of d.labelledGroups) drawGroupLabel(canvas, node, inputs.colorScheme);
+  },
+};
+
+type LayerName = keyof typeof LAYERS;
+const LAYER_ORDER: LayerName[] = ['groups', 'groupImages', 'shapes', 'text', 'fileImages', 'groupLabels'];
+/** The layers that draw images: recorded again when images finish loading. */
+const IMAGE_LAYERS: LayerName[] = ['groupImages', 'fileImages'];
+/** What each recording holds (see RecordingDetail). */
+const DETAIL_LAYERS: Record<RecordingDetail, LayerName[]> = {
+  full: LAYER_ORDER,
+  overview: ['groups', 'groupImages', 'shapes', 'fileImages'],
+  shapes: ['groups', 'shapes'],
+};
+
+function recordLayer(name: LayerName, d: Sorted, inputs: RecordingInputs, images: ImageCache): SkPicture {
+  return createPicture((canvas: SkCanvas) => LAYERS[name](canvas, d, inputs, images), d.bounds);
+}
+
+function composeLayers(layers: Partial<Record<LayerName, SkPicture>>, names: LayerName[], bounds: Sorted['bounds']): SkPicture {
   return createPicture((canvas: SkCanvas) => {
-    // Layer 1: group cards
-    for (const node of groupNodes) drawCard(canvas, node, colorScheme);
-    // Layer 2: group background images
-    if (images) for (const node of groupNodes) drawGroupBackground(canvas, node, imageCache, basePath);
-    // Layer 3: edges
-    for (const {edge, fromNode, toNode} of resolvedEdges) drawEdge(canvas, edge, fromNode, toNode);
-    // Layer 4: non-group cards
-    for (const node of nonGroupNodes) drawCard(canvas, node, colorScheme);
-    if (text) {
-      // Layer 5: text
-      for (const node of textNodes) drawTextNode(canvas, node, colorScheme);
-      // Layer 5: links
-      for (const node of linkNodes) drawLinkNode(canvas, node, colorScheme);
-      // Layer 5: file labels
-      for (const node of fileNodes) drawFileLabel(canvas, node, colorScheme, imageNames);
+    for (const name of names) {
+      const layer = layers[name];
+      if (layer) canvas.drawPicture(layer);
     }
-    // Layer 5: file images
-    if (images) for (const node of fileNodes) drawFileImage(canvas, node, imageCache, basePath, imageNames);
-    // Layer 6: group labels
-    if (text) for (const node of labelledGroups) drawGroupLabel(canvas, node, colorScheme);
   }, bounds);
+}
+
+function recordCanvasPicture(inputs: RecordingInputs, imageCache: ImageCache, detail: RecordingDetail = 'full'): SkPicture {
+  const d = sortInputs(inputs);
+  return createPicture((canvas: SkCanvas) => {
+    for (const name of DETAIL_LAYERS[detail]) LAYERS[name](canvas, d, inputs, imageCache);
+  }, d.bounds);
 }
 
 /** The canvas's cards and edges as one Picture, for the minimap: drawn every frame as a single replay rather than thousands of live shapes. */
@@ -923,8 +973,10 @@ export function useCanvasPicture(inputs: RecordingInputs): CanvasPictures | null
   const inputsRef = useRef(inputs);
   inputsRef.current = inputs;
 
-  // Effect 2 — Picture recording. Depends on content identity (nodeMap,
-  // colorScheme) and cacheVersion.
+  // Effect 2 — Picture recording, layer by layer (LAYERS). New content, a
+  // new colour scheme or a change to how image names show records every
+  // layer; images finishing loading records only the layers that draw them.
+  const layersRef = useRef<{key: unknown[]; sorted: Sorted; layers: Partial<Record<LayerName, SkPicture>>} | null>(null);
   useEffect(() => {
     let cancelled = false;
 
@@ -932,9 +984,19 @@ export function useCanvasPicture(inputs: RecordingInputs): CanvasPictures | null
       if (cancelled) return;
       requestAnimationFrame(() => {
         if (cancelled) return;
+        const current = inputsRef.current;
+        const key = [current.nodeMap, current.colorScheme, current.imageNames, current.allNodes, current.edges];
+        const kept = layersRef.current;
+        const same = kept != null && kept.key.every((k, i) => k === key[i]);
+        const sorted = same ? kept.sorted : sortInputs(current);
+        const layers: Partial<Record<LayerName, SkPicture>> = same ? {...kept.layers} : {};
+        for (const name of LAYER_ORDER) {
+          if (!layers[name] || IMAGE_LAYERS.includes(name)) layers[name] = recordLayer(name, sorted, current, imageCacheRef.current);
+        }
+        layersRef.current = {key, sorted, layers};
         setPicture({
-          full: recordCanvasPicture(inputsRef.current, imageCacheRef.current, 'full'),
-          overview: recordCanvasPicture(inputsRef.current, imageCacheRef.current, 'overview'),
+          full: composeLayers(layers, DETAIL_LAYERS.full, sorted.bounds),
+          overview: composeLayers(layers, DETAIL_LAYERS.overview, sorted.bounds),
         });
       });
     });
