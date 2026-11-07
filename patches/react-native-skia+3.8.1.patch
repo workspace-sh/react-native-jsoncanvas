@@ -1,0 +1,21 @@
+diff --git a/node_modules/react-native-skia/android/build.gradle b/node_modules/react-native-skia/android/build.gradle
+index 06517c4..88dafdd 100644
+--- a/node_modules/react-native-skia/android/build.gradle
++++ b/node_modules/react-native-skia/android/build.gradle
+@@ -42,7 +42,15 @@ static def findNodeModules(baseDir) {
+   throw new GradleException("React-Native-Skia: Failed to find node_modules/ path!")
+ }
+ 
+-def nodeModules = findNodeModules(projectDir)
++// The app's node_modules first: in an npm workspace another React Native can
++// be hoisted nearer this library than the app's own, and its headers then
++// don't match the libraries the app links.
++def nodeModules
++try {
++  nodeModules = findNodeModules(rootProject.projectDir)
++} catch (GradleException ignored) {
++  nodeModules = findNodeModules(projectDir)
++}
+ 
+ // Resolve a node package directory using Node's own module resolution, so we
+ // pick up the prebuilt Skia binaries straight from node_modules (no postinstall

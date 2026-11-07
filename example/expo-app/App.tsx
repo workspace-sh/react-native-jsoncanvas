@@ -1,11 +1,13 @@
 import {useCallback, useRef, useState} from 'react';
 import {Pressable, StyleSheet, Text, useColorScheme, View} from 'react-native';
 import {GestureHandlerRootView} from 'react-native-gesture-handler';
+import {SafeAreaProvider, useSafeAreaInsets} from 'react-native-safe-area-context';
 import {StatusBar} from 'expo-status-bar';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import {CanvasView} from '@workspace.sh/react-native-jsoncanvas';
 import {SAMPLE_CANVAS} from '../shared/fixtures';
+import {useNodeMenu} from './nodeMenu';
 
 type Controls = {
   fitToViewport: (leftInset?: number) => void;
@@ -18,7 +20,22 @@ function dirname(uri: string): string {
   return i >= 0 ? uri.slice(0, i + 1) : uri;
 }
 
+/** The buttons' row: its height, and the gap kept below it and above the minimap. */
+const CONTROLS_HEIGHT = 40;
+const GAP = 16;
+
 export default function App() {
+  return (
+    <SafeAreaProvider>
+      <Playground />
+    </SafeAreaProvider>
+  );
+}
+
+function Playground() {
+  // The canvas draws edge to edge (Android draws behind its system bars);
+  // the buttons and the minimap keep inside the safe area.
+  const insets = useSafeAreaInsets();
   const controlsRef = useRef<Controls | null>(null);
   const [lastAction, setLastAction] = useState<string>('—');
   // Active canvas content + basePath for the renderer. Defaults to the
@@ -30,6 +47,7 @@ export default function App() {
   // wrapper has to match so canvas-empty background doesn't fight node
   // colours (e.g. dark nodes on a white background in dark mode).
   const isDark = useColorScheme() === 'dark';
+  const nodeMenu = useNodeMenu(basePath);
 
   const openFile = useCallback(async () => {
     try {
@@ -73,8 +91,12 @@ export default function App() {
         onReady={c => {
           controlsRef.current = c;
         }}
+        onNodeLongPress={nodeMenu.onNodeLongPress}
+        safeAreaInsets={insets}
+        minimapBottomInset={CONTROLS_HEIGHT + GAP}
       />
-      <View style={styles.controls} pointerEvents="box-none">
+      {nodeMenu.menu}
+      <View style={[styles.controls, {bottom: insets.bottom + GAP, left: insets.left + GAP, right: insets.right + GAP}]} pointerEvents="box-none">
         <Pressable
           style={({pressed}) => [styles.button, pressed && styles.pressed]}
           onPress={openFile}
@@ -117,9 +139,7 @@ const styles = StyleSheet.create({
   root: {flex: 1},
   controls: {
     position: 'absolute',
-    bottom: 32,
-    left: 16,
-    right: 16,
+    height: CONTROLS_HEIGHT,
     flexDirection: 'row',
     gap: 8,
     alignItems: 'center',

@@ -1,5 +1,6 @@
 import {useState, useEffect, useRef} from 'react';
 import {Skia, createPicture, matchFont, PaintStyle, TileMode} from 'react-native-skia';
+import {canvasFont} from './fonts';
 import type {SkPicture, SkCanvas, SkFont, SkPaint, SkImage} from 'react-native-skia';
 import type {CanvasNode, CanvasEdge, TextNode, LinkNode, FileNode, GroupNode, EdgeSide} from '../core';
 import type {EnrichedTextNode} from './extensions/cssclasses';
@@ -9,7 +10,7 @@ import {
   resolveEdgeColor, EDGE_LABEL_TEXT_COLOR, type ColorScheme,
 } from './theme';
 import {CHIP, EDGE_LABEL, FILE_IMAGE, GROUP_LABEL, LABEL, LINK, NODE, ZONE} from './metrics';
-import {FONT_SIZE, H4, type FontConfig} from './typography';
+import {FONT_SIZE, H4, SYSTEM_FONT, type FontConfig} from './typography';
 import {hasInlineLabel, isImageFile, type ImageNames} from './utils/fileNodeLabel';
 import {parseToSegments, toPlainText} from './markdown';
 import {buildParagraph, getParagraphColours} from './paragraphBuilder';
@@ -27,11 +28,11 @@ function getFont(config: FontConfig): SkFont {
   let f = fontCache.get(config);
   if (!f) {
     const spec: Parameters<typeof matchFont>[0] = {
-      fontFamily: config.fontFamily ?? 'System',
+      fontFamily: config.fontFamily ?? SYSTEM_FONT,
       fontSize: config.fontSize,
     };
     if (config.fontWeight) spec.fontWeight = config.fontWeight;
-    f = matchFont(spec);
+    f = canvasFont(spec);
     fontCache.set(config, f);
   }
   return f;
@@ -45,23 +46,23 @@ let _fileSubpathFont: SkFont | null = null;
 let _labelFont: SkFont | null = null;
 
 function getHostnameFont(): SkFont {
-  if (!_hostnameFont) _hostnameFont = matchFont({fontFamily: 'System', fontSize: FONT_SIZE.linkHostname, fontWeight: 'bold'});
+  if (!_hostnameFont) _hostnameFont = canvasFont({fontFamily: SYSTEM_FONT, fontSize: FONT_SIZE.linkHostname, fontWeight: 'bold'});
   return _hostnameFont;
 }
 function getUrlFont(): SkFont {
-  if (!_urlFont) _urlFont = matchFont({fontFamily: 'System', fontSize: FONT_SIZE.linkUrl});
+  if (!_urlFont) _urlFont = canvasFont({fontFamily: SYSTEM_FONT, fontSize: FONT_SIZE.linkUrl});
   return _urlFont;
 }
 function getFileNameFont(): SkFont {
-  if (!_fileNameFont) _fileNameFont = matchFont({fontFamily: 'System', fontSize: FONT_SIZE.fileName, fontWeight: 'bold'});
+  if (!_fileNameFont) _fileNameFont = canvasFont({fontFamily: SYSTEM_FONT, fontSize: FONT_SIZE.fileName, fontWeight: 'bold'});
   return _fileNameFont;
 }
 function getFileSubpathFont(): SkFont {
-  if (!_fileSubpathFont) _fileSubpathFont = matchFont({fontFamily: 'System', fontSize: FONT_SIZE.fileSubpath});
+  if (!_fileSubpathFont) _fileSubpathFont = canvasFont({fontFamily: SYSTEM_FONT, fontSize: FONT_SIZE.fileSubpath});
   return _fileSubpathFont;
 }
 function getEdgeLabelFont(): SkFont {
-  if (!_labelFont) _labelFont = matchFont({fontFamily: 'System', fontSize: FONT_SIZE.edgeLabel});
+  if (!_labelFont) _labelFont = canvasFont({fontFamily: SYSTEM_FONT, fontSize: FONT_SIZE.edgeLabel});
   return _labelFont;
 }
 
@@ -686,7 +687,7 @@ function drawFileLabel(canvas: SkCanvas, node: FileNode, colorScheme: ColorSchem
 function drawGroupLabel(canvas: SkCanvas, node: GroupNode, colorScheme: ColorScheme) {
   if (!node.label) return;
   const colors = getNodeColors(node.color, colorScheme);
-  const font = matchFont({fontFamily: 'System', fontSize: FONT_SIZE.groupLabel, fontWeight: 'bold'});
+  const font = canvasFont({fontFamily: SYSTEM_FONT, fontSize: FONT_SIZE.groupLabel, fontWeight: 'bold'});
 
   const textWidth = font.measureText(node.label).width;
   const pillWidth = textWidth + GROUP_LABEL.paddingX * 2;

@@ -1,3 +1,12 @@
+import {Platform} from 'react-native';
+
+/**
+ * The system's sans-serif family, by the name each platform's font manager
+ * knows it by. Android's has no "System": a font matched by that name there
+ * has no typeface, and its text draws nothing.
+ */
+export const SYSTEM_FONT = Platform.OS === 'android' ? 'sans-serif' : 'System';
+
 /**
  * Type scale, shared by both rendering paths.
  *
