@@ -9,7 +9,8 @@ export const BENCH_REMOUNTS = 0;
 export const BENCH_SIZES = [500, 2000, 5000, 10000];
 
 /**
- * A folder (a file:// URI ending in `/`) holding workspace-fixtures'
+ * A folder, as a plain path (no `file://`: it's the canvas's basePath, which
+ * resolveFileUri turns into a URI), holding workspace-fixtures'
  * Fixtures/canvas images (`portraits/`, `drawings/shapes.svg`), to measure
  * big-10000.canvas as well: the 10,000-node canvas with those images in place
  * of the web ones, which is what that fixture is (scripts/big-canvas.mts).
