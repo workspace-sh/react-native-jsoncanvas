@@ -513,9 +513,12 @@ export function CanvasView({content, basePath, initialViewState, onViewStateChan
       const t = Math.min(1, elapsed / durationMs);
       // easeOutCubic: starts fast, decelerates to a soft landing.
       const eased = 1 - Math.pow(1 - t, 3);
-      translateX.value = startTx + (toTx - startTx) * eased;
-      translateY.value = startTy + (toTy - startTy) * eased;
-      scale.value = startScale + (toScale - startScale) * eased;
+      // The last frame writes the target itself: `start + (to - start)` can
+      // round past it (0.5 + (0.1 - 0.5) is 0.0999…), which at the smallest
+      // zoom lands under the overview scale and hides every card's text.
+      translateX.value = t < 1 ? startTx + (toTx - startTx) * eased : toTx;
+      translateY.value = t < 1 ? startTy + (toTy - startTy) * eased : toTy;
+      scale.value = t < 1 ? startScale + (toScale - startScale) * eased : toScale;
       if (t < 1) {
         animFrameRef.current = requestAnimationFrame(tick);
       } else {
