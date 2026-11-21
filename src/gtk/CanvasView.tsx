@@ -15,6 +15,7 @@ import { useProperty } from '@gtkx/react';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   drawCanvas,
+  drawMinimap,
   fitCamera,
   panBy,
   parseCanvasDocument,
@@ -115,6 +116,7 @@ export function CanvasView({
   onCameraChange,
   sidebarShown = false,
   colorScheme,
+  minimap = false,
 }: {
   source: string;
   label?: string;
@@ -129,6 +131,8 @@ export function CanvasView({
    * libadwaita app gets a canvas that matches its window with no wiring.
    */
   colorScheme?: ColorScheme;
+  /** The minimap in the bottom-left corner: every card, and a frame round what's on screen. */
+  minimap?: boolean;
 }) {
   const scheme = useCanvasColorScheme(colorScheme);
   const model = useMemo(() => parseCanvasDocument(source), [source]);
@@ -232,8 +236,9 @@ export function CanvasView({
         lastSize.current = { width, height };
       }
       drawCanvas(cr, model, width, height, camera.current, scheme);
+      if (minimap) drawMinimap(cr, model, width, height, camera.current, scheme);
     },
-    [model, scheme],
+    [model, scheme, minimap],
   );
 
   const apply = useCallback(

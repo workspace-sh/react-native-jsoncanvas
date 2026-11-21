@@ -412,3 +412,69 @@ export function drawCanvas(
 
   ctx.restore();
 }
+
+/** The minimap's box, as React Native's: 160×120 for a wide canvas, upright for a tall one. */
+const MINIMAP = { width: 160, height: 120, edge: 12, inner: 8, padding: 50, radius: 6 } as const;
+
+/**
+ * The minimap, drawn over the canvas's bottom-left corner, as React Native's
+ * `CanvasMinimap`: every card in its colour, and a frame round what the view
+ * shows now. Its colours are the RN theme's (`getMinimapColors`).
+ */
+export function drawMinimap(
+  ctx: cairo.Context,
+  model: CanvasModel,
+  width: number,
+  height: number,
+  camera: Camera,
+  scheme: 'light' | 'dark' = 'light',
+): void {
+  if (model.nodes.length === 0) return;
+  const dark = scheme === 'dark';
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const n of model.nodes) {
+    minX = Math.min(minX, n.x);
+    minY = Math.min(minY, n.y);
+    maxX = Math.max(maxX, n.x + n.width);
+    maxY = Math.max(maxY, n.y + n.height);
+  }
+  minX -= MINIMAP.padding;
+  minY -= MINIMAP.padding;
+  const bw = Math.max(1, maxX + MINIMAP.padding - minX);
+  const bh = Math.max(1, maxY + MINIMAP.padding - minY);
+  const box = bw / bh < 1 ? { width: MINIMAP.height, height: MINIMAP.width } : { width: MINIMAP.width, height: MINIMAP.height };
+  if (width < box.width + 2 * MINIMAP.edge || height < box.height + 2 * MINIMAP.edge) return;
+  // Bottom left: the bottom right holds the view's own zoom buttons.
+  const x0 = MINIMAP.edge;
+  const y0 = height - box.height - MINIMAP.edge;
+  const k = Math.min((box.width - 2 * MINIMAP.inner) / bw, (box.height - 2 * MINIMAP.inner) / bh);
+  const ox = x0 + (box.width - bw * k) / 2;
+  const oy = y0 + (box.height - bh * k) / 2;
+  const toX = (wx: number) => ox + (wx - minX) * k;
+  const toY = (wy: number) => oy + (wy - minY) * k;
+
+  ctx.save();
+  roundedRect(ctx, x0, y0, box.width, box.height, MINIMAP.radius);
+  ctx.setSourceRgba(...(dark ? ([0.11, 0.11, 0.12] as Rgb) : ([0.98, 0.98, 0.98] as Rgb)), 0.96);
+  ctx.fillPreserve();
+  ctx.setSourceRgba(...(dark ? ([0x3f / 255, 0x3f / 255, 0x46 / 255] as Rgb) : ([0xd4 / 255, 0xd4 / 255, 0xd8 / 255] as Rgb)), 1);
+  ctx.setLineWidth(1);
+  ctx.stroke();
+  roundedRect(ctx, x0, y0, box.width, box.height, MINIMAP.radius);
+  ctx.clip();
+  // Groups behind the cards, as on the canvas.
+  for (const n of [...model.nodes.filter(m => m.type === 'group'), ...model.nodes.filter(m => m.type !== 'group')]) {
+    const [r, g, b] = n.type === 'group' ? fillOf(n.color, dark) : colorOf(n.color);
+    ctx.rectangle(toX(n.x), toY(n.y), Math.max(1, n.width * k), Math.max(1, n.height * k));
+    ctx.setSourceRgba(r, g, b, n.type === 'group' ? 0.5 : 0.85);
+    ctx.fill();
+  }
+  // What the view shows now, in world units, framed.
+  const vx = -camera.tx / camera.scale;
+  const vy = -camera.ty / camera.scale;
+  ctx.rectangle(toX(vx), toY(vy), (width / camera.scale) * k, (height / camera.scale) * k);
+  ctx.setSourceRgba(...(dark ? ([0xfb / 255, 0xbf / 255, 0x24 / 255] as Rgb) : ([0xf5 / 255, 0x9e / 255, 0x0b / 255] as Rgb)), 1);
+  ctx.setLineWidth(1.5);
+  ctx.stroke();
+  ctx.restore();
+}
