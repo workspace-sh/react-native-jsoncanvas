@@ -5,6 +5,7 @@ A JSON Canvas (`.canvas`) renderer with three layers on one document model:
 - `src/core/`: spec-pure JSON Canvas (parser, serialiser, spatial index, state, colour presets). No React, no rendering, and no community conventions such as cssclasses or callouts.
 - `src/renderer/`: the React Native renderer (Skia + Reanimated) for iOS, Android and macOS, consumed from the package root.
 - `src/gtk/`: the GTK4 / libadwaita renderer (Cairo, through GTKX) for Linux, consumed as `./gtk`.
+- `src/menu/`: a card's long-press menu on Android (Material 3's dropdown, from `@expo/ui`'s Compose components), consumed as `./menu`. It's its own entry point so the package root never imports `@expo/ui`, an optional peer: nothing under `src/renderer/` or `src/index.ts` may import from `src/menu/`.
 
 Workspace consumes all three. Issue numbers written `workspace#N` are in workspace-sh/workspace.
 

@@ -37,6 +37,11 @@
       "types": "./src/index.ts",
       "default": "./src/index.ts"
     },
+    "./menu": {
+      "source": "./src/menu/index.ts",
+      "types": "./src/menu/index.ts",
+      "default": "./src/menu/index.ts"
+    },
     "./gtk": {
       "source": "./src/gtk/index.ts",
       "types": "./src/gtk/index.ts",
@@ -84,6 +89,7 @@
     "node": ">=20"
   },
   "peerDependencies": {
+    "@expo/ui": ">=58.0.0",
     "@gtkx/cairo": ">=1.4.0",
     "@gtkx/react": ">=1.4.0",
     "react": ">=19.0.0",
@@ -119,6 +125,9 @@
     "typescript": "^5.8.3"
   },
   "peerDependenciesMeta": {
+    "@expo/ui": {
+      "optional": true
+    },
     "@gtkx/cairo": {
       "optional": true
     },
